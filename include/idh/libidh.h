@@ -31,7 +31,7 @@ typedef enum _IDH_ERRCODE {
     IDH_ERRCODE_BADQUANLITY,
     IDH_ERRCODE_UNSUPPORTTYPE,
     IDH_ERRCODE_NOTALLREADABLE,
-    IDH_ERRCODE_HASUNSUBSRIBEDITEM,  // batch操作包含未订阅项
+    IDH_ERRCODE_HASUNSUBSRIBEDITEM,  // batch operation has unsubscribed item
 } IDH_ERRCODE;
 
 typedef enum _IDH_DATATYPE {
@@ -49,15 +49,10 @@ typedef enum _IDH_QUALITY {
     IDH_HIGH_UNCERTAIN = 0x0300,
     IDH_HIGH_MASK = 0xff00,
 
-    IDH_LOW_INVALID_NODATA = 0x01,       // 此位号无数据
-    IDH_LOW_INVALID_UNREAD = 0x02,       // 此位号尚未读取到数据
-    IDH_LOW_INVALID_UNSUBSCRIBE = 0x03,  // 调用Batch时此位号尚未被订阅
-    IDH_LOW_INVALID_TYPE = 0x04,         // 类型无法转换
-
-    IDH_LOW_LIMIT_MASK = 0x01,          // 是否超出上下限
-    IDH_LOW_CALIBRATING_MASK = 0x02,    // 是否处于设备校准
-    IDH_LOW_LOW_PRECISION_MASK = 0x04,  // 是否由于采样率低导致精度下降
-    IDH_LOW_NETWORK_DELAY_MASK = 0x08,  // 是否由于网络延迟导致
+    IDH_LOW_INVALID_NODATA = 0x01,       // tag value not exists
+    IDH_LOW_INVALID_UNREAD = 0x02,       // tag value has not been read
+    IDH_LOW_INVALID_UNSUBSCRIBE = 0x03,  // batch operation has unsubscribed item
+    IDH_LOW_INVALID_TYPE = 0x04,         // cannot convert data type
 
 } IDH_QUALITY;
 
