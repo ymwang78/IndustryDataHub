@@ -4,7 +4,8 @@
  *  This library is used to provide a common interface for accessing data from different data
  * sources The data sources can be OPC UA, OPC DA, SQL, etc.
  * Note:
- * 1. Don't support abs(int64/uint64) >= 2^52
+ * 1. Don't support abs(int64/uint64) >= 2^52, because of the precision of double.
+ * 2. Minimal support OPC DA 2.0. opc.da://{hostname}/{ProgID} opc.da://{hostname}/{CLSID}
  */
 
 #ifdef _WIN32
@@ -24,14 +25,48 @@ extern "C" {
 
 typedef enum _IDH_ERRCODE {
     IDH_ERRCODE_SUCCESS = 0,
+
+    IDH_SUCCEED_IDHBASE = 0x1110000,
+    IDH_SUCCEED_ALREADYEXIST,
+
     IDH_ERRCODE_FAILED = -1,
-    IDH_ERRCODE_ERRBASE = 0x81110000,
+
+    IDH_ERROR_COMMON = 0x81010000,  // IDH COMM ERROR
+    IDH_ERROR_MALLOC,
+    IDH_ERROR_UNSUPPORT,
+    IDH_ERROR_SHRTLEN,
+    IDH_ERROR_EXCDLEN,
+    IDH_ERROR_CORRUPT,
+    IDH_ERROR_SYNTAX,
+    IDH_ERROR_ZIP,
+    IDH_ERROR_TIMEOUT,
+    IDH_ERROR_CONVERTOR,
+    IDH_ERROR_CLOSED,
+    IDH_ERROR_TOCLOSE,
+    IDH_ERROR_PREVNULL,
+    IDH_ERROR_OVERFLOW,
+    IDH_ERROR_INVALID,
+    IDH_ERROR_DUPLICATED,
+    IDH_ERROR_UNINIT,
+    IDH_ERROR_BADPRC,
+    IDH_ERROR_NORESOURCE,
+    IDH_ERROR_VERSION,
+
+    IDH_ERRCODE_IDHBASE = 0x81110000,
+    IDH_ERRCODE_INVALIDTAG,
     IDH_ERRCODE_INVALIDHANDLE,
+    IDH_ERRCODE_INVALIDSERVER,
+    IDH_ERRCODE_ADDITEM,
     IDH_ERRCODE_NOVALUE,
     IDH_ERRCODE_BADQUANLITY,
     IDH_ERRCODE_UNSUPPORTTYPE,
+    IDH_ERRCODE_UNSUBSCRIBED,
     IDH_ERRCODE_NOTALLREADABLE,
-    IDH_ERRCODE_HASUNSUBSRIBEDITEM,  // batch operation has unsubscribed item
+    IDH_ERRCODE_HASUNSUBSRIBEDITEM,  // group operation has unsubscribed item
+    IDH_ERRCODE_SUBSCRIBEFAILED,
+    IDH_ERRCODE_INCONSISTENT,  // inconsistent request, e.g. write different values for the same tag
+    IDH_ERRCODE_BADSROUCE,
+
 } IDH_ERRCODE;
 
 typedef enum _IDH_DATATYPE {
@@ -53,10 +88,14 @@ typedef enum _IDH_QUALITY {
     IDH_LOW_INVALID_UNREAD = 0x02,       // tag value has not been read
     IDH_LOW_INVALID_UNSUBSCRIBE = 0x03,  // batch operation has unsubscribed item
     IDH_LOW_INVALID_TYPE = 0x04,         // cannot convert data type
+    IDH_LOW_INVALID_HANDLE = 0x05,      // bad quality
+    IDH_LOW_INVALID_OVERFLOW = 0x06,     // overflow
+    IDH_LOW_INVALID_BADVALUE = 0x07,     // bad value
+    IDH_LOW_INVALID_BADQUALITY = 0x08,   // bad quality
 
 } IDH_QUALITY;
 
-typedef enum _IDH_RTSOURCE { IDH_RTSOURCE_UA, IDH_RTSOURCE_COUNT } IDH_RTSOURCE;
+typedef enum _IDH_RTSOURCE { IDH_RTSOURCE_UA, IDH_RTSOURCE_DA, IDH_RTSOURCE_COUNT } IDH_RTSOURCE;
 
 typedef struct _idh_handle {
     int dummy;
@@ -66,9 +105,15 @@ typedef struct _idh_source {
     int dummy;
 }* idh_source_t;
 
-typedef struct _idh_batch {
+typedef struct _idh_source_desc {
+    IDH_RTSOURCE source_type;
+    char name[256];
+    char schema[256];
+} idh_source_desc_t;
+
+typedef struct _idh_group {
     int dummy;
-}* idh_batch_t;
+}* idh_group_t;
 
 typedef struct _idh_tag {
     unsigned char data_type;
@@ -77,7 +122,7 @@ typedef struct _idh_tag {
 } idh_tag_t;
 
 typedef struct _idh_real {
-    unsigned long long quality : 16;  // IDH_QUALITY
+    unsigned short quality : 16;  // IDH_QUALITY
     long long timestamp : 48;         // million second from 1970-01-01 00:00:00
     double value;                     // value
 } idh_real_t;
@@ -86,11 +131,16 @@ LIBIDH_API idh_handle_t idh_instance_create();
 
 LIBIDH_API void idh_instance_destroy(idh_handle_t handle);
 
+LIBIDH_API int idh_instance_discovery(idh_handle_t handle, idh_source_desc_t* source_vec,
+                                      unsigned source_size, const char* hostname,
+                                      unsigned short port);
 /* data source */
 
 LIBIDH_API idh_source_t idh_source_create(idh_handle_t handle, IDH_RTSOURCE source_type,
                                           const char* source_schema, int sample_timespan_msec,
                                           int support_subscribe);
+
+LIBIDH_API int idh_source_valid(idh_source_t source_id);
 
 LIBIDH_API void idh_source_destroy(idh_source_t source_id);
 
@@ -102,22 +152,22 @@ LIBIDH_API int idh_source_writevalues(idh_source_t source_id, int* results, cons
 
 /* batch operators. speed up for high frequency read/write */
 
-LIBIDH_API idh_batch_t idh_batch_create(idh_source_t handle);
+LIBIDH_API idh_group_t idh_group_create(idh_source_t handle, const char* group_name);
 
-LIBIDH_API int idh_batch_subscribe(idh_batch_t batch_id, int* results, const idh_tag_t* tags_ptr,
-                                   unsigned tags_size);
+LIBIDH_API int idh_group_subscribe(idh_group_t batch_id, long long* handles_or_errcode,
+                                   const idh_tag_t* tags_ptr, unsigned tags_size);
 
-LIBIDH_API void idh_batch_unsubscribe(idh_batch_t batch_id, const idh_tag_t* tags_ptr,
+LIBIDH_API void idh_group_unsubscribe(idh_group_t batch_id, const long long* tag_handles,
                                       unsigned tags_size);
 
 LIBIDH_API
-int idh_batch_readvalues(idh_batch_t batch_id, idh_real_t* values_ptr, const idh_tag_t* tags_ptr,
+int idh_group_readvalues(idh_group_t batch_id, idh_real_t* values_ptr, const long long* tag_handles,
                          unsigned tags_size);
 
-LIBIDH_API int idh_batch_writevalues(idh_batch_t batch_id, int* results, const double* values_ptr,
-                                     const idh_tag_t* tags_ptr, unsigned tags_size);
+LIBIDH_API int idh_group_writevalues(idh_group_t batch_id, int* results, const double* values_ptr,
+                                     const long long* tag_handles, unsigned tags_size);
 
-LIBIDH_API void idh_batch_destroy(idh_batch_t batch_id);
+LIBIDH_API void idh_group_destroy(idh_group_t batch_id);
 
 #ifdef __cplusplus
 }
