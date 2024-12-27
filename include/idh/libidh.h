@@ -122,9 +122,9 @@ typedef struct _idh_tag {
 } idh_tag_t;
 
 typedef struct _idh_real {
-    unsigned short quality : 16;  // IDH_QUALITY
-    long long timestamp : 48;         // million second from 1970-01-01 00:00:00
-    double value;                     // value
+    unsigned short quality; // IDH_QUALITY
+    long long timestamp;    // million second from 1970-01-01 00:00:00
+    double value;           // value
 } idh_real_t;
 
 LIBIDH_API idh_handle_t idh_instance_create();
