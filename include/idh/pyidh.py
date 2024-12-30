@@ -257,7 +257,7 @@ class IDHLibrary:
             hostname.encode('utf-8'),
             port
         )
-        return IDH_ERRCODE(result)
+        return result
 
     def create_source(self, source_type, source_schema, sample_timespan_msec, support_subscribe):
         return libidh.idh_source_create(
