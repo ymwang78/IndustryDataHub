@@ -381,15 +381,11 @@ def main():
     # Discovery example
     source_descs = [
         idh_source_desc_t(
-            source_type=IDH_RTSOURCE.IDH_RTSOURCE_UA.value,
-            name=b"OPC_UA_Source",
-            schema=b"opc.tcp://DESKTOP-S7QB5IR:48010"
-        ),
-        idh_source_desc_t(
-            source_type=IDH_RTSOURCE.IDH_RTSOURCE_DA.value,
-            name=b"OPC_DA_Source",
-            schema=b"opc.da://localhost/Taiji.OPCServer.1"
+            source_type=0,
+            name=b"",
+            schema=b""
         )
+        for _ in range(16)
     ]
 
     discovery_result = idh.discovery(
@@ -398,6 +394,8 @@ def main():
         port=4840
     )
     print(f"Discovery Result: {discovery_result}")
+    for source_desc in source_descs[:discovery_result]:
+        print(f"Source Type: {source_desc.source_type}, Name: {source_desc.name.decode('utf-8')}, Schema: {source_desc.schema.decode('utf-8')}")
 
     # Create a source
     source = idh.create_source(
