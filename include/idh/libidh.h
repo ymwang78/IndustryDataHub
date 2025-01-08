@@ -95,15 +95,13 @@ typedef enum _IDH_QUALITY {
 
 } IDH_QUALITY;
 
+static const long long IDH_INVALID_HANDLE = ~0;
+
 typedef enum _IDH_RTSOURCE { IDH_RTSOURCE_UA, IDH_RTSOURCE_DA, IDH_RTSOURCE_COUNT } IDH_RTSOURCE;
 
-typedef struct _idh_handle {
-    int dummy;
-}* idh_handle_t;
+typedef long long idh_handle_t;
 
-typedef struct _idh_source {
-    int dummy;
-}* idh_source_t;
+typedef long long idh_source_t;
 
 typedef struct _idh_source_desc {
     IDH_RTSOURCE source_type;
@@ -111,9 +109,7 @@ typedef struct _idh_source_desc {
     char schema[256];
 } idh_source_desc_t;
 
-typedef struct _idh_group {
-    int dummy;
-}* idh_group_t;
+typedef long long idh_group_t;
 
 typedef struct _idh_tag {
     unsigned char data_type;

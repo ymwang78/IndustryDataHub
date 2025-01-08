@@ -162,8 +162,8 @@ int main() {
     {
         idh_tag_t tags[] = {
             {IDH_DATATYPE_REAL, 3, "MV1"},
-            {IDH_DATATYPE_REAL, 3, "MV2"},
-            {IDH_DATATYPE_REAL, 3, "MV3"},
+            {IDH_DATATYPE_REAL, 3, "MV1"},
+            {IDH_DATATYPE_REAL, 3, "MV1"},
             {IDH_DATATYPE_REAL, 3, "CV1"},
             {IDH_DATATYPE_REAL, 3, "CV2"},
             {IDH_DATATYPE_REAL, 3, "CV3"},

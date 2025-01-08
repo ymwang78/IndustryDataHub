@@ -42,6 +42,8 @@ libidh = load_libidh()
 def to_signed32(n):
     return n - 0x100000000 if n >= 0x80000000 else n
 
+IDH_INVALID_HANDLE = c_longlong(~0)
+
 class IDH_ERRCODE(Enum):
     IDH_ERRCODE_SUCCESS = 0
     IDH_SUCCEED_IDHBASE = 0x1110000
@@ -131,10 +133,10 @@ class idh_real_t(Structure):
         ("value", c_double),
     ]
 
-# Define opaque pointers as c_void_p
-idh_handle_t = c_void_p
-idh_source_t = c_void_p
-idh_group_t = c_void_p
+# Define opaque pointers as c_longlong
+idh_handle_t = c_longlong
+idh_source_t = c_longlong
+idh_group_t = c_longlong
 
 # idh_instance_create
 libidh.idh_instance_create.restype = idh_handle_t
@@ -238,13 +240,13 @@ libidh.idh_group_destroy.argtypes = [idh_group_t]
 class IDHLibrary:
     def __init__(self):
         self.handle = libidh.idh_instance_create()
-        if not self.handle:
+        if IDH_INVALID_HANDLE == self.handle:
             raise Exception("Failed to create IDH instance.")
 
     def destroy(self):
-        if self.handle:
+        if IDH_INVALID_HANDLE != self.handle:
             libidh.idh_instance_destroy(self.handle)
-            self.handle = None
+            self.handle = IDH_INVALID_HANDLE
 
     def discovery(self, source_descs, hostname, port):
         source_size = len(source_descs)
@@ -404,6 +406,9 @@ def main():
         sample_timespan_msec=1000,
         support_subscribe=1
     )
+    if IDH_INVALID_HANDLE == source:
+        print("Failed to create group.")
+        return
     if not idh.is_source_valid(source):
         print("Source is not valid.")
         return
@@ -426,6 +431,9 @@ def main():
 
     # Batch operations example
     group = idh.create_group(source, "Group1")
+    if IDH_INVALID_HANDLE == group:
+        print("Failed to create group.")
+        return
     subscribe_result, handles = idh.subscribe_group(group, tags)
     # hex print handles
     handles_hex = [hex(handle) for handle in handles]
