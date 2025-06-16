@@ -21,6 +21,13 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     
+    - name: Install VC140 Runtime
+      run: |
+        $url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        $output = "vc_redist.x64.exe"
+        Invoke-WebRequest -Uri $url -OutFile $output
+        Start-Process -FilePath $output -ArgumentList "/install", "/quiet", "/norestart" -Wait
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
