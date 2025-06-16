@@ -4,6 +4,9 @@ on:
   release:
     types: [created]
 
+permissions:
+  id-token: write  # 需要这个权限来使用 OIDC
+
 jobs:
   deploy:
     runs-on: windows-latest
@@ -13,7 +16,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.12'
+        python-version: '3.11'
     
     - name: Install dependencies
       run: |
@@ -26,9 +29,4 @@ jobs:
         python -m build
     
     - name: Publish to PyPI
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: |
-        cd pyidh
-        python -m twine upload dist/* 
+      uses: pypa/gh-action-pypi-publish@release/v1 
