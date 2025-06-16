@@ -29,16 +29,16 @@ jobs:
         pip install pytest
     
     - name: Build package
+      working-directory: pyidh
       run: |
-        cd pyidh
         python setup.py sdist bdist_wheel
     
     - name: Install package
+      working-directory: pyidh
       run: |
-        cd pyidh
-        pip install dist/*.whl
+        pip install dist/pyidh-0.1.1-py3-none-any.whl
     
     - name: Run tests
+      working-directory: pyidh
       run: |
-        cd pyidh
         python -m unittest discover tests 
