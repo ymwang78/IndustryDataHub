@@ -1,24 +1,53 @@
 *.o
 *.a
 *.so
-# ��������һ��Ŀ¼
+# 忽略所有一级目录
 /*/
 
-# ���� bin, include, lib Ŀ¼
+# 保证 pyidh 目录不被忽略
+!pyidh/
+
+# 保留 bin, include, lib 目录
 !bin/
 !include/
 !lib/
 !libsrc/
 
-# ���� bin, include, lib Ŀ¼�µĿ���Ŀ¼
+# 忽略 bin, include, lib 目录下的空目录
 bin/*
 include/*
 lib/*
 libsrc/*
 
-# ���� bin, include, lib Ŀ¼�µ������ļ�
+# 保留 bin, include, lib 目录下的所有文件
 !bin/**
 !include/**
 !lib/**
 !libsrc/**
+
+# 保留 .github 目录
+!.github/
+
+# 保留 .gitignore 文件
+!.gitignore
+
+# 保留 README.md 文件
+!README.md
+
+# 忽略 pyidh 目录下的特定文件
+pyidh/dist/
+pyidh/build/
+pyidh/*.egg-info/
+pyidh/__pycache__/
+pyidh/*.pyc
+pyidh/*.pyo
+pyidh/*.pyd
+pyidh/.Python
+pyidh/env/
+pyidh/venv/
+pyidh/.env/
+pyidh/.venv/
+pyidh/.pytest_cache/
+pyidh/.coverage
+pyidh/htmlcov/
 
