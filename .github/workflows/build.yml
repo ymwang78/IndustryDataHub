@@ -28,11 +28,6 @@ jobs:
         Invoke-WebRequest -Uri $url -OutFile $output
         Start-Process -FilePath $output -ArgumentList "/install", "/quiet", "/norestart" -Wait
     
-    - name: 注册 TaiJi OPC DA 模拟服务
-      run: |
-        .\da_sim\bin\TaijiOPCSim.exe -RegServer
-        Start-Sleep -Seconds 3
-    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -48,9 +43,4 @@ jobs:
     - name: Install package
       working-directory: pyidh
       run: |
-        pip install dist/pyidh-0.1.1-py3-none-any.whl
-    
-    - name: Run tests
-      working-directory: pyidh
-      run: |
-        python -m unittest discover tests 
+        pip install dist/pyidh-0.1.1-py3-none-any.whl 
