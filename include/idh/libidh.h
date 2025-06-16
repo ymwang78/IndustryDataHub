@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 /* libidh : Industry Data Hub Library
  *  This library is used to provide a common interface for accessing data from different data
@@ -88,12 +88,18 @@ typedef enum _IDH_QUALITY {
     IDH_LOW_INVALID_UNREAD = 0x02,       // tag value has not been read
     IDH_LOW_INVALID_UNSUBSCRIBE = 0x03,  // batch operation has unsubscribed item
     IDH_LOW_INVALID_TYPE = 0x04,         // cannot convert data type
-    IDH_LOW_INVALID_HANDLE = 0x05,      // bad quality
+    IDH_LOW_INVALID_HANDLE = 0x05,       // bad quality
     IDH_LOW_INVALID_OVERFLOW = 0x06,     // overflow
     IDH_LOW_INVALID_BADVALUE = 0x07,     // bad value
     IDH_LOW_INVALID_BADQUALITY = 0x08,   // bad quality
 
+    IDH_LOW_GOOD_MANUAL = 0x01,  // manually entered
+
 } IDH_QUALITY;
+
+static int idh_is_good_quality(unsigned short quality) {
+    return (quality & IDH_HIGH_MASK) == IDH_HIGH_GOOD;
+}
 
 static const long long IDH_INVALID_HANDLE = ~0;
 
@@ -118,9 +124,9 @@ typedef struct _idh_tag {
 } idh_tag_t;
 
 typedef struct _idh_real {
-    unsigned short quality; // IDH_QUALITY
-    long long timestamp;    // million second from 1970-01-01 00:00:00
-    double value;           // value
+    unsigned short quality;  // IDH_QUALITY
+    long long timestamp;     // million second from 1970-01-01 00:00:00
+    double value;            // value
 } idh_real_t;
 
 LIBIDH_API idh_handle_t idh_instance_create();
@@ -149,6 +155,8 @@ LIBIDH_API int idh_source_writevalues(idh_source_t source_id, int* results, cons
 /* batch operators. speed up for high frequency read/write */
 
 LIBIDH_API idh_group_t idh_group_create(idh_source_t handle, const char* group_name);
+
+LIBIDH_API void idh_group_clear(idh_group_t batch_id);
 
 LIBIDH_API int idh_group_subscribe(idh_group_t batch_id, long long* handles_or_errcode,
                                    const idh_tag_t* tags_ptr, unsigned tags_size);
