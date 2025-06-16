@@ -28,6 +28,11 @@ jobs:
         Invoke-WebRequest -Uri $url -OutFile $output
         Start-Process -FilePath $output -ArgumentList "/install", "/quiet", "/norestart" -Wait
     
+    - name: 注册 TaiJi OPC DA 模拟服务
+      run: |
+        .\da_sim\bin\TaijiOPCSim.exe -RegServer
+        Start-Sleep -Seconds 3
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
