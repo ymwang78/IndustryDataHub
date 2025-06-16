@@ -9,26 +9,19 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
     
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
+        python-version: '3.12'
     
-    - name: Install VC140 Runtime
-      run: |
-        $url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
-        $output = "vc_redist.x64.exe"
-        Invoke-WebRequest -Uri $url -OutFile $output
-        Start-Process -FilePath $output -ArgumentList "/install", "/quiet", "/norestart" -Wait
-    
-    - name: Install dependencies
+    - name: Install build tools
       run: |
         python -m pip install --upgrade pip
-        pip install setuptools wheel build twine
+        pip install build
     
     - name: Build package
       working-directory: pyidh
@@ -38,4 +31,4 @@ jobs:
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        path: pyidh/dist 
+        packages-dir: pyidh/dist 
