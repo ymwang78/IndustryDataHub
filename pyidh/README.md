@@ -4,6 +4,11 @@ Python wrapper for IDH (Industrial Data Hub) library.
 
 ## Installation
 
+1. Install Microsoft Visual C++ 2015-2022 Redistributable:
+   - 64-bit system: [Download VC140 x64](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+   - 32-bit system: [Download VC140 x86](https://aka.ms/vs/17/release/vc_redist.x86.exe)
+
+2. Install pyidh:
 ```bash
 pip install pyidh
 ```

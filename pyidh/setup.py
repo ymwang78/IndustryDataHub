@@ -1,4 +1,35 @@
 from setuptools import setup, find_packages
+import os
+import sys
+import ctypes
+from ctypes import wintypes
+
+def check_vc140_runtime():
+    """检查是否安装了 VC140 运行时"""
+    try:
+        # 尝试加载 VC140 运行时
+        ctypes.WinDLL('vcruntime140.dll')
+        return True
+    except OSError:
+        return False
+
+def get_vc140_installer_url():
+    """获取 VC140 运行时安装程序 URL"""
+    if sys.maxsize > 2**32:
+        return "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+    else:
+        return "https://aka.ms/vs/17/release/vc_redist.x86.exe"
+
+class VCRuntimeError(Exception):
+    """VC140 运行时缺失错误"""
+    pass
+
+# 检查 VC140 运行时
+if not check_vc140_runtime():
+    raise VCRuntimeError(
+        "Microsoft Visual C++ 2015-2022 Redistributable (VC140) is required.\n"
+        f"Please download and install it from: {get_vc140_installer_url()}"
+    )
 
 setup(
     name="pyidh",
