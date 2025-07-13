@@ -33,7 +33,7 @@ if sys.platform == "win32":
 
 setup(
     name="pyidh",
-    version="0.1.1",
+    version="0.1.2",
     packages=find_packages(),
     package_data={
         "pyidh": ["libidh.dll"],
