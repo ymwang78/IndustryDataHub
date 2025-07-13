@@ -129,6 +129,30 @@ typedef struct _idh_real {
     double value;            // value
 } idh_real_t;
 
+typedef enum _IDH_NODETYPE {
+    IDH_NODETYPE_UNKNOWN = 0,
+    IDH_NODETYPE_OBJECT = 1,
+    IDH_NODETYPE_VARIABLE = 2,
+    IDH_NODETYPE_METHOD = 3,
+    IDH_NODETYPE_OBJECTTYPE = 4,
+    IDH_NODETYPE_VARIABLETYPE = 5,
+    IDH_NODETYPE_DATATYPE = 6,
+    IDH_NODETYPE_REFERENCETYPE = 7,
+    IDH_NODETYPE_VIEW = 8
+} IDH_NODETYPE;
+
+typedef struct _idh_browse_item {
+    unsigned short namespace_index;
+    char node_name[256];        // 节点名称
+    char display_name[256];     // 显示名称
+    char description[512];      // 节点描述
+    IDH_NODETYPE node_type;     // 节点类型
+    IDH_DATATYPE data_type;     // 数据类型（仅变量节点有效）
+    unsigned char is_readable;  // 是否可读
+    unsigned char is_writable;  // 是否可写
+    unsigned char has_children; // 是否有子节点
+} idh_browse_item_t;
+
 LIBIDH_API idh_handle_t idh_instance_create();
 
 LIBIDH_API void idh_instance_destroy(idh_handle_t handle);
@@ -145,6 +169,13 @@ LIBIDH_API idh_source_t idh_source_create(idh_handle_t handle, IDH_RTSOURCE sour
 LIBIDH_API int idh_source_valid(idh_source_t source_id);
 
 LIBIDH_API void idh_source_destroy(idh_source_t source_id);
+
+LIBIDH_API int idh_source_browse(idh_source_t source_id, idh_browse_item_t* items,
+                                 unsigned* items_count, unsigned short parent_namespace_index,
+                                 const char* parent_node_name);
+
+LIBIDH_API int idh_source_browse_root(idh_source_t source_id, idh_browse_item_t* items,
+                                      unsigned* items_count);
 
 LIBIDH_API int idh_source_readvalues(idh_source_t source_id, idh_real_t* values,
                                      const idh_tag_t* tags_ptr, int tags_size);

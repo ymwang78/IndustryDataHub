@@ -107,7 +107,7 @@ class IDH_ERRCODE(Enum):
     IDH_ERRCODE_SUBSCRIBEFAILED = to_signed32(0x8111000B)
     IDH_ERRCODE_INCONSISTENT = to_signed32(0x8111000C)
     IDH_ERRCODE_BADSROUCE = to_signed32(0x8111000D)
-    
+
 
 class IDH_DATATYPE(Enum):
     IDH_DATATYPE_UNKNOW = 0
@@ -135,6 +135,17 @@ class IDH_RTSOURCE(Enum):
     IDH_RTSOURCE_DA = 1
     IDH_RTSOURCE_COUNT = 2
 
+class IDH_NODETYPE(Enum):
+    IDH_NODETYPE_UNKNOWN = 0
+    IDH_NODETYPE_OBJECT = 1
+    IDH_NODETYPE_VARIABLE = 2
+    IDH_NODETYPE_METHOD = 3
+    IDH_NODETYPE_OBJECTTYPE = 4
+    IDH_NODETYPE_VARIABLETYPE = 5
+    IDH_NODETYPE_DATATYPE = 6
+    IDH_NODETYPE_REFERENCETYPE = 7
+    IDH_NODETYPE_VIEW = 8
+
 class idh_source_desc_t(Structure):
     _fields_ = [
         ("source_type", c_int),
@@ -154,6 +165,19 @@ class idh_real_t(Structure):
         ("quality", c_ushort),        # IDH_QUALITY
         ("timestamp", c_longlong),    # million seconds from epoch
         ("value", c_double),
+    ]
+
+class idh_browse_item_t(Structure):
+    _fields_ = [
+        ("namespace_index", c_ushort),
+        ("node_name", c_char * 256),        # 节点名称
+        ("display_name", c_char * 256),     # 显示名称
+        ("description", c_char * 512),      # 节点描述
+        ("node_type", c_int),               # IDH_NODETYPE
+        ("data_type", c_int),               # IDH_DATATYPE
+        ("is_readable", c_byte),            # 是否可读
+        ("is_writable", c_byte),            # 是否可写
+        ("has_children", c_byte),           # 是否有子节点
     ]
 
 # Define opaque pointers as c_longlong
@@ -260,6 +284,14 @@ libidh.idh_group_writevalues.argtypes = [
 libidh.idh_group_destroy.restype = None
 libidh.idh_group_destroy.argtypes = [idh_group_t]
 
+# idh_source_browse
+libidh.idh_source_browse.restype = c_int
+libidh.idh_source_browse.argtypes = [idh_source_t, POINTER(idh_browse_item_t), POINTER(c_uint), c_ushort, c_char_p]
+
+# idh_source_browse_root
+libidh.idh_source_browse_root.restype = c_int
+libidh.idh_source_browse_root.argtypes = [idh_source_t, POINTER(idh_browse_item_t), POINTER(c_uint)]
+
 class IDHLibrary:
     def __init__(self):
         self.handle = libidh.idh_instance_create()
@@ -272,7 +304,7 @@ class IDHLibrary:
             self.handle = IDH_INVALID_HANDLE
 
     def discovery(self, source_array, hostname="localhost", port=0):
-        """发现OPC服务器"""
+        """Discover OPC Servers"""
         if not isinstance(source_array, list) or not all(isinstance(x, idh_source_desc_t) for x in source_array):
             raise TypeError("source_array must be a list of idh_source_desc_t")
         array = (idh_source_desc_t * len(source_array))(*source_array)
@@ -283,7 +315,7 @@ class IDHLibrary:
             hostname.encode('utf-8'),
             port
         )
-        # 将结果复制回 source_array
+        # copy result back to source_array
         for i in range(result):
             source_array[i] = array[i]
         return result
@@ -344,7 +376,7 @@ class IDHLibrary:
             source,
             group_name.encode('utf-8')
         )
-    
+
     def clear_group(self, group):
         libidh.idh_group_clear(group)
 
@@ -403,6 +435,84 @@ class IDHLibrary:
     def destroy_group(self, group):
         libidh.idh_group_destroy(group)
 
+    def browse_source(self, source, max_items, parent_namespace_index=0, parent_node_name=None):
+        """
+        browse opc tags
+        
+        Args:
+            source: handle
+            max_items: maxium items returned
+            parent_namespace_index: namespace (ua)
+            parent_node_name: parent，None if root
+            
+        Returns:
+            tuple: (error code, item list)
+        """
+        items_array_type = idh_browse_item_t * max_items
+        items_array = items_array_type()
+        items_count = c_uint(max_items)
+        
+        parent_name_bytes = None
+        if parent_node_name:
+            parent_name_bytes = parent_node_name.encode('utf-8')
+        
+        result = libidh.idh_source_browse(
+            source, 
+            items_array, 
+            byref(items_count),
+            parent_namespace_index,
+            parent_name_bytes
+        )
+        
+        items_list = []
+        for i in range(items_count.value):
+            item = items_array[i]
+            items_list.append({
+                'namespace_index': item.namespace_index,
+                'node_name': item.node_name.decode('utf-8') if item.node_name else '',
+                'display_name': item.display_name.decode('utf-8') if item.display_name else '',
+                'description': item.description.decode('utf-8') if item.description else '',
+                'node_type': IDH_NODETYPE(item.node_type),
+                'data_type': IDH_DATATYPE(item.data_type),
+                'is_readable': bool(item.is_readable),
+                'is_writable': bool(item.is_writable),
+                'has_children': bool(item.has_children)
+            })
+        
+        return result, items_list
+
+    def browse_source_root(self, source, max_items):
+        """
+        Returns:
+            tuple: (error code, item list)
+        """
+        items_array_type = idh_browse_item_t * max_items
+        items_array = items_array_type()
+        items_count = c_uint(max_items)
+        
+        result = libidh.idh_source_browse_root(
+            source, 
+            items_array, 
+            byref(items_count)
+        )
+        
+        items_list = []
+        for i in range(items_count.value):
+            item = items_array[i]
+            items_list.append({
+                'namespace_index': item.namespace_index,
+                'node_name': item.node_name.decode('utf-8') if item.node_name else '',
+                'display_name': item.display_name.decode('utf-8') if item.display_name else '',
+                'description': item.description.decode('utf-8') if item.description else '',
+                'node_type': IDH_NODETYPE(item.node_type),
+                'data_type': IDH_DATATYPE(item.data_type),
+                'is_readable': bool(item.is_readable),
+                'is_writable': bool(item.is_writable),
+                'has_children': bool(item.has_children)
+            })
+        
+        return result, items_list
+
     def __del__(self):
         self.destroy()
 
@@ -420,7 +530,11 @@ def main():
         for _ in range(16)
     ]
 
-    discovery_result = idh.discovery(source_descs)
+    discovery_result = idh.discovery(
+        source_descs,
+        hostname="192.168.200.11",
+        port=48010
+    )
     print(f"Discovery Result: {discovery_result}")
     for source_desc in source_descs[:discovery_result]:
         print(f"Source Type: {source_desc.source_type}, Name: {source_desc.name.decode('utf-8')}, Schema: {source_desc.schema.decode('utf-8')}")
@@ -428,7 +542,7 @@ def main():
     # Create a source
     source = idh.create_source(
         source_type=IDH_RTSOURCE.IDH_RTSOURCE_UA.value,
-        source_schema="opc.tcp://DESKTOP-S7QB5IR:48010",
+        source_schema="opc.tcp://192.168.200.11:48010",
         sample_timespan_msec=1000,
         support_subscribe=1
     )
@@ -438,6 +552,28 @@ def main():
     if not idh.is_source_valid(source):
         print("Source is not valid.")
         return
+
+    # Browse example - browse root
+    print("\n=== browse root ===")
+    browse_result, browse_items = idh.browse_source_root(source, 50)
+    print(f"Browse Root Result: {browse_result}")
+    for item in browse_items[:10]:  # 只显示前10个项目
+        print(f"  {item['namespace_index']}  {item['node_name']} ({item['display_name']}) - Type: {item['node_type']}, "
+              f"Readable: {item['is_readable']}, Writable: {item['is_writable']}, "
+              f"Has Children: {item['has_children']}")
+    
+    # browse first child if it has
+    for item in browse_items:
+        if item['has_children'] and item['namespace_index'] == 3 and item['node_type'] == IDH_NODETYPE.IDH_NODETYPE_OBJECT:
+            print(f"\n=== browse sub itme: {item['namespace_index']} {item['node_name']} ===")
+            child_result, child_items = idh.browse_source(
+                source, 20, item['namespace_index'], item['node_name']
+            )
+            print(f"Browse Child Result: {child_result}")
+            for child in child_items[:5]: 
+                print(f"    {child['node_name']} ({child['display_name']}) - Type: {child['node_type']}, "
+                      f"Readable: {child['is_readable']}, Writable: {child['is_writable']}")
+            break
 
     # Read values example
     tags = [
