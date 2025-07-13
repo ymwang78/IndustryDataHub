@@ -43,4 +43,4 @@ jobs:
     - name: Install package
       working-directory: pyidh
       run: |
-        pip install dist/pyidh-0.1.1-py3-none-any.whl 
+        pip install dist/pyidh-0.1.2-py3-none-any.whl 
