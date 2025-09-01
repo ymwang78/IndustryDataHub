@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+﻿from setuptools import setup, find_packages
 import sys
 
 # 仅在 Windows 下检查 VC140 运行时
@@ -33,7 +33,7 @@ if sys.platform == "win32":
 
 setup(
     name="pyidh",
-    version="0.1.2",
+    version="0.1.3",
     packages=find_packages(),
     package_data={
         "pyidh": ["libidh.dll"],

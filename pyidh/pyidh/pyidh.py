@@ -1,4 +1,4 @@
-import ctypes
+﻿import ctypes
 from ctypes import (
     c_int,
     c_uint,
@@ -65,6 +65,16 @@ def to_signed32(n):
     return n - 0x100000000 if n >= 0x80000000 else n
 
 IDH_INVALID_HANDLE = c_longlong(~0)
+
+# 日志级别枚举
+class IDH_LOG_LEVEL(Enum):
+    IDH_LOG_LEVEL_TRACE = 0    # 最详细的日志级别
+    IDH_LOG_LEVEL_DEBUG = 1    # 调试信息
+    IDH_LOG_LEVEL_INFO = 2     # 一般信息
+    IDH_LOG_LEVEL_WARN = 3     # 警告信息
+    IDH_LOG_LEVEL_ERROR = 4    # 错误信息
+    IDH_LOG_LEVEL_FATAL = 5    # 致命错误
+    IDH_LOG_LEVEL_OFF = 255    # 关闭日志
 
 class IDH_ERRCODE(Enum):
     IDH_ERRCODE_SUCCESS = 0
@@ -292,6 +302,13 @@ libidh.idh_source_browse.argtypes = [idh_source_t, POINTER(idh_browse_item_t), P
 libidh.idh_source_browse_root.restype = c_int
 libidh.idh_source_browse_root.argtypes = [idh_source_t, POINTER(idh_browse_item_t), POINTER(c_uint)]
 
+# 设置函数签名
+libidh.idh_set_log_level.restype = c_int
+libidh.idh_set_log_level.argtypes = [c_int]
+
+libidh.idh_get_log_level.restype = c_int
+libidh.idh_get_log_level.argtypes = [POINTER(c_int)]
+
 class IDHLibrary:
     def __init__(self):
         self.handle = libidh.idh_instance_create()
@@ -302,6 +319,34 @@ class IDHLibrary:
         if IDH_INVALID_HANDLE != self.handle:
             libidh.idh_instance_destroy(self.handle)
             self.handle = IDH_INVALID_HANDLE
+
+    def set_log_level(self, level):
+        """设置日志级别
+        
+        Args:
+            level: IDH_LOG_LEVEL枚举值
+            
+        Returns:
+            int: 成功返回0，失败返回错误码
+        """
+        if not isinstance(level, IDH_LOG_LEVEL):
+            raise TypeError("level must be IDH_LOG_LEVEL enum")
+        
+        result = libidh.idh_set_log_level(level.value)
+        return result
+
+    def get_log_level(self):
+        """获取当前日志级别
+        
+        Returns:
+            IDH_LOG_LEVEL: 当前日志级别
+        """
+        level = c_int()
+        result = libidh.idh_get_log_level(byref(level))
+        if result == 0:
+            return IDH_LOG_LEVEL(level.value)
+        else:
+            raise Exception(f"Failed to get log level, error code: {result}")
 
     def discovery(self, source_array, hostname="localhost", port=0):
         """Discover OPC Servers"""
@@ -483,8 +528,14 @@ class IDHLibrary:
 
     def browse_source_root(self, source, max_items):
         """
+        浏览OPC服务器根目录
+        
+        Args:
+            source: 数据源句柄
+            max_items: 最大返回项目数量
+            
         Returns:
-            tuple: (error code, item list)
+            tuple: (错误码, 浏览项目列表)
         """
         items_array_type = idh_browse_item_t * max_items
         items_array = items_array_type()
@@ -532,8 +583,8 @@ def main():
 
     discovery_result = idh.discovery(
         source_descs,
-        hostname="192.168.200.11",
-        port=48010
+        hostname="localhost",
+        port=4840
     )
     print(f"Discovery Result: {discovery_result}")
     for source_desc in source_descs[:discovery_result]:
@@ -542,7 +593,7 @@ def main():
     # Create a source
     source = idh.create_source(
         source_type=IDH_RTSOURCE.IDH_RTSOURCE_UA.value,
-        source_schema="opc.tcp://192.168.200.11:48010",
+        source_schema="opc.tcp://DESKTOP-S7QB5IR:48010",
         sample_timespan_msec=1000,
         support_subscribe=1
     )
@@ -558,14 +609,14 @@ def main():
     browse_result, browse_items = idh.browse_source_root(source, 50)
     print(f"Browse Root Result: {browse_result}")
     for item in browse_items[:10]:  # 只显示前10个项目
-        print(f"  {item['namespace_index']}  {item['node_name']} ({item['display_name']}) - Type: {item['node_type']}, "
+        print(f"  {item['node_name']} ({item['display_name']}) - Type: {item['node_type']}, "
               f"Readable: {item['is_readable']}, Writable: {item['is_writable']}, "
               f"Has Children: {item['has_children']}")
     
     # browse first child if it has
     for item in browse_items:
-        if item['has_children'] and item['namespace_index'] == 3 and item['node_type'] == IDH_NODETYPE.IDH_NODETYPE_OBJECT:
-            print(f"\n=== browse sub itme: {item['namespace_index']} {item['node_name']} ===")
+        if item['has_children'] and item['node_type'] == IDH_NODETYPE.IDH_NODETYPE_OBJECT:
+            print(f"\n=== browse sub itme: {item['node_name']} ===")
             child_result, child_items = idh.browse_source(
                 source, 20, item['namespace_index'], item['node_name']
             )
