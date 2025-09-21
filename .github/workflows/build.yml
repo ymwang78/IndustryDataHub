@@ -78,6 +78,7 @@ jobs:
         echo "Built wheels:"
         ls -la pyidh/wheelhouse/ || true
         ls -la pyidh/dist/ || true
+      shell: bash
 
     - name: Upload wheel artifacts
       uses: actions/upload-artifact@v4
