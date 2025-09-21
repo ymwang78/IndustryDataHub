@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 def get_target_platform():
-    """获取目标平台信息"""
+    """Get target platform information"""
     target_platform = os.environ.get("IDH_TARGET_PLATFORM")
     if target_platform:
         return target_platform
@@ -27,16 +27,16 @@ def get_target_platform():
     return f"{machine}_{system}"
 
 def get_precompiled_library_files(target_platform):
-    """获取预编译库文件（相对于 pyidh/）"""
+    """Get precompiled library files (relative to pyidh/)"""
     platform_dir = Path("pyidh") / target_platform
     if not platform_dir.exists():
-        raise FileNotFoundError(f"预编译库目录不存在: {platform_dir}")
+        raise FileNotFoundError(f"Precompiled library directory not found: {platform_dir}")
 
     library_files = []
     for pattern in ["*.dll", "*.so", "*.so.*", "*.dylib"]:
         for f in platform_dir.glob(pattern):
             if f.is_file():
-                # 注意这里返回的是相对 pyidh 的路径
+                # Return paths relative to pyidh/
                 rel_path = str(f.relative_to("pyidh"))
                 library_files.append(rel_path)
 
@@ -48,33 +48,22 @@ def get_install_requires(target_platform):
         base_requires.append("pywin32>=305")
     return base_requires
 
-def get_platform_tag(target_platform):
-    mapping = {
-        "win_amd64": "win_amd64",
-        "win_arm64": "win_arm64",
-        "linux_x86_64": "linux_x86_64",
-        "linux_aarch64": "linux_aarch64",
-    }
-    return mapping.get(target_platform, "any")
-
 target_platform = get_target_platform()
-print(f"构建目标平台: {target_platform}")
+print(f"Building for target platform: {target_platform}")
 
 try:
     library_files = get_precompiled_library_files(target_platform)
-    print(f"找到预编译库文件: {library_files}")
+    print(f"Found precompiled libraries: {library_files}")
 except FileNotFoundError as e:
-    print(f"警告: {e}")
+    print(f"Warning: {e}")
     library_files = []
-
-platform_tag = get_platform_tag(target_platform)
 
 setup(
     name="pyidh",
     version="0.1.5",
     packages=find_packages(),
     package_data={
-        "pyidh": library_files,   # 包含 pyidh/<platform> 下的二进制
+        "pyidh": library_files,   # Include binaries under pyidh/<platform>
     },
     include_package_data=True,
     install_requires=get_install_requires(target_platform),
@@ -105,8 +94,8 @@ setup(
     keywords="industrial automation, data communication, OPC, modbus, multi-platform",
     zip_safe=False,
     options={
-    "bdist_wheel": {
-            "plat_name": platform_tag
+        "bdist_wheel": {
+            "plat_name": target_platform
         }
     }
 )
