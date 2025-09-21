@@ -52,9 +52,9 @@ jobs:
       shell: bash
         
     - name: Build wheel
+      #cd pyidh
       #python -m build --wheel
       run: |
-        cd pyidh
         export IDH_TARGET_PLATFORM="${{ matrix.platform }}"
         python scripts/build_wheels.py ${{ matrix.platform }}
       shell: bash
