@@ -17,47 +17,37 @@ from enum import Enum
 import ctypes.util
 import os
 import sys
-
-def find_dll_dependencies(dll_path):
-    """查找DLL的依赖项"""
-    try:
-        # 移除对 win32api.GetDllDirectory() 的调用
-        # deps = win32api.GetDllDirectory()
-        # print(f"Current DLL search path: {deps}")
-        lib = ctypes.CDLL(dll_path)
-        print(f"Successfully loaded {dll_path}")
-    except Exception as e:
-        print(f"Error loading {dll_path}: {e}")
+import platform
 
 def load_libidh():
+    # 当前包目录
+    lib_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # 平台目录名称要和 setup.py 中保持一致
     if sys.platform.startswith("win"):
+        arch = "win_amd64" if platform.machine().lower() in ["x86_64", "amd64"] else "win_arm64"
         lib_name = "libidh.dll"
-        try:
-            # 首先尝试从当前目录加载
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            lib_path = os.path.join(current_dir, lib_name)
-            print(f"Trying to load DLL from: {lib_path}")
-            find_dll_dependencies(lib_path)
-            lib = ctypes.WinDLL(lib_path)
-        except OSError as e:
-            print(f"Error loading DLL from {lib_path}: {e}")
-            # 如果失败，尝试从系统路径加载
-            try:
-                print(f"Trying to load DLL from system path")
-                lib = ctypes.WinDLL(lib_name)
-            except OSError as e:
-                print(f"Error loading DLL from system path: {e}")
-                raise
     elif sys.platform.startswith("linux"):
+        arch = "linux_x86_64" if platform.machine().lower() in ["x86_64", "amd64"] else "linux_aarch64"
         lib_name = "libidh.so"
-        try:
-            lib = ctypes.CDLL(lib_name)
-        except OSError:
-            lib_path = os.path.join(os.path.dirname(__file__), lib_name)
-            lib = ctypes.CDLL(lib_path)
     else:
-        raise OSError("Unsupported platform.")
-    return lib
+        raise OSError(f"Unsupported platform: {sys.platform}")
+
+    platform_dir = os.path.join(lib_dir, arch)
+    lib_path = os.path.join(platform_dir, lib_name)
+
+    if not os.path.exists(lib_path):
+        raise FileNotFoundError(f"Could not find {lib_name} in {platform_dir}")
+
+    try:
+        if sys.platform.startswith("win"):
+            lib = ctypes.WinDLL(lib_path)
+        else:
+            lib = ctypes.CDLL(lib_path)
+        print(f"Loaded {lib_name} from {platform_dir}")
+        return lib
+    except OSError as e:
+        raise OSError(f"Failed to load {lib_name} from {platform_dir}: {e}")
 
 libidh = load_libidh()
 
