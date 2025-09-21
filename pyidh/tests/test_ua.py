@@ -25,8 +25,8 @@ class TestUADataSource(unittest.TestCase):
         ]
         discovery_result = self.idh.discovery(
             source_descs,
-            hostname="localhost",
-            port=4840
+            hostname="1.95.140.236",
+            port=46011
         )
         self.assertGreater(discovery_result, 0, "No UA servers discovered")
         print("\nDiscovered UA Servers:")
@@ -39,7 +39,7 @@ class TestUADataSource(unittest.TestCase):
     def test_ua_source(self):
         source = self.idh.create_source(
             source_type=IDH_RTSOURCE.IDH_RTSOURCE_UA.value,
-            source_schema="opc.tcp://localhost:4840/TaiJi.OPC.Sim",
+            source_schema="opc.tcp://1.95.140.236:46011/",
             sample_timespan_msec=1000,
             support_subscribe=1
         )
