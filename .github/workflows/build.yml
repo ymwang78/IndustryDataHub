@@ -3,10 +3,6 @@ name: Build Python Wheels
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  release:
-    types: [ published ]
 
 permissions:
   id-token: write  # 需要这个权限来使用 OIDC
