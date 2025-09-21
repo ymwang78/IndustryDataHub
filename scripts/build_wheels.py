@@ -91,6 +91,10 @@ def build_wheel_for_platform(platform):
         repaired_wheels = list(repaired_dir.glob("*.whl"))
         if repaired_wheels:
             print(f"auditwheel repair finished: {[w.name for w in repaired_wheels]}")
+            # ✅ 删除原始 dist 下的 wheel
+            for f in Path("pyidh/dist").glob("*.whl"):
+                print(f"Removing original wheel: {f}")
+                f.unlink() 
         else:
             print("auditwheel did not produce any file")
             return False
