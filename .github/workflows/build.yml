@@ -8,6 +8,9 @@ on:
   release:
     types: [ published ]
 
+permissions:
+  id-token: write  # 需要这个权限来使用 OIDC
+
 jobs:
   build-wheels:
     name: Build wheel on ${{ matrix.platform }}
@@ -71,8 +74,8 @@ jobs:
     - name: List built wheels
       run: |
         echo "Built wheels:"
-        ls -la pyidh/dist/ || true
         ls -la pyidh/wheelhouse/ || true
+        ls -la pyidh/dist/ || true
       shell: bash
         
     - name: Upload wheel artifacts
@@ -80,8 +83,8 @@ jobs:
       with:
         name: wheels-${{ matrix.platform }}
         path: |
-          pyidh/dist/*.whl
           pyidh/wheelhouse/*.whl
+          pyidh/dist/*.whl
         retention-days: 30
 
   publish:
@@ -102,5 +105,4 @@ jobs:
         
     - uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        password: ${{ secrets.PYPI_API_TOKEN }}
         packages-dir: dist/
