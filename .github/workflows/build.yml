@@ -1,11 +1,15 @@
-name: Build Python Wheels
+name: Build and Publish Wheels
 
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]   # 发布正式 release 时触发上传到 PyPI
 
 permissions:
-  id-token: write  # 需要这个权限来使用 OIDC
+  id-token: write    # OIDC trusted publishing 需要
   contents: read
 
 jobs:
@@ -18,46 +22,47 @@ jobs:
         include:
           - platform: win_amd64
             runner: windows-latest
-          #- platform: win_arm64
-          #  runner: windows-latest
           - platform: linux_x86_64
             runner: ubuntu-latest
-          #- platform: linux_aarch64
-          #  runner: ubuntu-latest
+          # 如果以后需要 arm64 再加
+          # - platform: win_arm64
+          #   runner: windows-latest
+          # - platform: linux_aarch64
+          #   runner: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.13'   # 构建统一用 3.13
-        
+        python-version: '3.13'   # 用统一版本来构建
+
     - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
         pip install build wheel setuptools auditwheel
-        
-    - name: Install platform dependencies (Windows)
+
+    - name: Install platform dependencies (Windows only)
       if: contains(matrix.platform, 'win')
       run: |
         pip install pywin32>=305
-        
+
     - name: Verify precompiled libraries
       run: |
         cd pyidh
         echo "Checking precompiled libraries for ${{ matrix.platform }}"
         ls -la pyidh/${{ matrix.platform }}/
       shell: bash
-        
+
     - name: Build wheel
       #cd pyidh && python -m build --wheel
       run: |
         export IDH_TARGET_PLATFORM="${{ matrix.platform }}"
         python scripts/build_wheels.py ${{ matrix.platform }}
       shell: bash
-        
+
     #- name: Repair wheel (Linux only)
     #  if: contains(matrix.platform, 'linux')
     #  run: |
@@ -73,8 +78,7 @@ jobs:
         echo "Built wheels:"
         ls -la pyidh/wheelhouse/ || true
         ls -la pyidh/dist/ || true
-      shell: bash
-        
+
     - name: Upload wheel artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -82,5 +86,29 @@ jobs:
         path: |
           pyidh/wheelhouse/*.whl
           pyidh/dist/*.whl
-        retention-days: 30
+        retention-days: 7
 
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: [build-wheels]
+    if: github.event_name == 'release'   # 仅在 release 时触发
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        path: wheels/
+
+    - run: |
+        mkdir -p dist
+        find wheels/ -name "*.whl" -exec cp {} dist/ \;
+        echo "Final wheels to publish:"
+        ls -la dist/
+
+    - uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        packages-dir: dist/
