@@ -51,7 +51,18 @@ IndustryDataHub/
 ### 安装构建依赖
 
 ```bash
-pip install build wheel setuptools
+# manylinux
+yum install -y patchelf
+/opt/python/cp313-cp313/bin/python -m pip install build setuptools wheel
+/opt/python/cp313-cp313/bin/python scripts/build_wheels.py linux_x86_64
+
+#debian 
+sudo apt install python3.13-venv,patchelf
+python -m venv ~/venv
+source ~/venv/bin/active
+pip3 install build wheel setuptools auditwheel
+
+python3 scripts/build_wheels.py linux_x86_64
 ```
 
 ## 预编译库准备

@@ -20,8 +20,8 @@ jobs:
             runner: windows-latest
           #- platform: win_arm64
           #  runner: windows-latest
-          #- platform: linux_x86_64
-          #  runner: ubuntu-latest
+          - platform: linux_x86_64
+            runner: ubuntu-latest
           #- platform: linux_aarch64
           #  runner: ubuntu-latest
 
@@ -32,7 +32,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.12'   # 构建统一用 3.12
+        python-version: '3.13'   # 构建统一用 3.13
         
     - name: Install build dependencies
       run: |

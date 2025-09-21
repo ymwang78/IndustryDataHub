@@ -14,7 +14,7 @@ from pathlib import Path
 PLATFORMS = [
     "win_amd64",
     # "win_arm64",
-    # "linux_x86_64",
+    "linux_x86_64",
     # "linux_aarch64"
 ]
 
@@ -60,7 +60,7 @@ def build_wheel_for_platform(platform):
         shutil.rmtree(dist_dir)
 
     # 1. Build wheel
-    cmd = "python -m build --wheel"
+    cmd = "python3 -m build --wheel"
     result = subprocess.run(cmd, shell=True, cwd="pyidh", env=env,
                             capture_output=True, text=True, encoding="utf-8")
     if result.returncode != 0:
@@ -108,7 +108,7 @@ def build_all_wheels():
         import build
     except ImportError:
         print("Installing build dependencies...")
-        if not run_command("pip install build wheel setuptools"):
+        if not run_command("pip install build wheel setuptools auditwheel"):
             print("Failed to install dependencies")
             return False
     
