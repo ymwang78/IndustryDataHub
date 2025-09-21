@@ -46,6 +46,7 @@ jobs:
         
     - name: Verify precompiled libraries
       run: |
+        cd pyidh
         echo "Checking precompiled libraries for ${{ matrix.platform }}"
         ls -la pyidh/${{ matrix.platform }}/
       shell: bash
