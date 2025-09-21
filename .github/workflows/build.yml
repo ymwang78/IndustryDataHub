@@ -52,21 +52,22 @@ jobs:
       shell: bash
         
     - name: Build wheel
+      #python -m build --wheel
       run: |
         cd pyidh
         export IDH_TARGET_PLATFORM="${{ matrix.platform }}"
-        python -m build --wheel
+        python scripts/build_wheels.py ${{ matrix.platform }}
       shell: bash
         
-    - name: Repair wheel (Linux only)
-      if: contains(matrix.platform, 'linux')
-      run: |
-        cd pyidh
-        mkdir -p wheelhouse
-        for whl in dist/*.whl; do
-          auditwheel repair "$whl" -w wheelhouse/
-        done
-      shell: bash
+    #- name: Repair wheel (Linux only)
+    #  if: contains(matrix.platform, 'linux')
+    #  run: |
+    #    cd pyidh
+    #    mkdir -p wheelhouse
+    #    for whl in dist/*.whl; do
+    #      auditwheel repair "$whl" -w wheelhouse/
+    #    done
+    #  shell: bash
         
     - name: List built wheels
       run: |
