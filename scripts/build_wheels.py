@@ -15,7 +15,7 @@ PLATFORMS = [
     "win_amd64",
     # "win_arm64",
     "linux_x86_64",
-    # "linux_aarch64"
+    "linux_aarch64"
 ]
 
 def run_command(cmd, cwd=None):

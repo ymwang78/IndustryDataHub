@@ -54,13 +54,15 @@ IndustryDataHub/
 # manylinux
 yum install -y patchelf
 /opt/python/cp313-cp313/bin/python -m pip install build setuptools wheel
+/opt/python/cp313-cp313/bin/python scripts/build_wheels.py linux_aarch64
 /opt/python/cp313-cp313/bin/python scripts/build_wheels.py linux_x86_64
 
 #debian 
-sudo apt install python3.13-venv,patchelf
-python -m venv ~/venv
-source ~/venv/bin/active
+sudo apt install python3.13-venv patchelf
+python3 -m venv ~/venv
+source ~/venv/bin/activate
 pip3 install build wheel setuptools auditwheel
+python3 scripts/build_wheels.py linux_aarch64
 
 python3 scripts/build_wheels.py linux_x86_64
 ```
