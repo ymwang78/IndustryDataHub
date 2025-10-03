@@ -24,11 +24,11 @@ jobs:
             runner: windows-latest
           - platform: linux_x86_64
             runner: ubuntu-latest
+          - platform: linux_aarch64
+            runner: ubuntu-latest
           # 如果以后需要 arm64 再加
           # - platform: win_arm64
           #   runner: windows-latest
-          # - platform: linux_aarch64
-          #   runner: ubuntu-latest
 
     steps:
     - name: Checkout code
