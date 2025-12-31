@@ -2,6 +2,7 @@
 from ctypes import (
     c_int,
     c_uint,
+    c_ulonglong,  # for uint64_t
     c_longlong,
     c_ushort,
     c_byte,
@@ -39,13 +40,13 @@ def load_libidh():
     if not os.path.exists(lib_path):
         raise FileNotFoundError(f"Could not find {lib_name} in {platform_dir}")
 
-    try:
+        try:
         if sys.platform.startswith("win"):
             lib = ctypes.WinDLL(lib_path)
         else:
             lib = ctypes.CDLL(lib_path)
         print(f"Loaded {lib_name} from {platform_dir}")
-        return lib
+    return lib
     except OSError as e:
         raise OSError(f"Failed to load {lib_name} from {platform_dir}: {e}")
 
@@ -116,24 +117,94 @@ class IDH_DATATYPE(Enum):
     IDH_DATATYPE_STRING = 3
 
 class IDH_QUALITY(Enum):
-    IDH_HIGH_INVALID = 0x0
-    IDH_HIGH_GOOD = 0x0100
-    IDH_HIGH_BAD = 0x0200
-    IDH_HIGH_UNCERTAIN = 0x0300
-    IDH_HIGH_MASK = 0xff00
-    IDH_LOW_INVALID_NODATA = 0x01
-    IDH_LOW_INVALID_UNREAD = 0x02
-    IDH_LOW_INVALID_UNSUBSCRIBE = 0x03
-    IDH_LOW_INVALID_TYPE = 0x04
-    IDH_LOW_INVALID_HANDLE = 0x05
-    IDH_LOW_INVALID_OVERFLOW = 0x06
-    IDH_LOW_INVALID_BADVALUE = 0x07
-    IDH_LOW_INVALID_BADQUALITY = 0x08
+    # High 2-bit Quality Class
+    IDH_HIGH_INVALID = 0x00    # 00xxxxxx
+    IDH_HIGH_UNCERTAIN = 0x40  # 01xxxxxx
+    IDH_HIGH_BAD = 0x80        # 10xxxxxx
+    IDH_HIGH_GOOD = 0xC0       # 11xxxxxx
+    IDH_HIGH_MASK = 0xC0
+
+    # INVALID / BAD Base States (0x01–0x0F)
+    IDH_LOW_INVALID_NODATA = 0x01       # BadNoData
+    IDH_LOW_INVALID_UNREAD = 0x02       # BadWaitingForInitialData
+    IDH_LOW_INVALID_UNSUBSCRIBE = 0x03  # BadNotConnected
+    IDH_LOW_INVALID_TYPE = 0x04         # BadTypeMismatch
+    IDH_LOW_INVALID_HANDLE = 0x05       # BadNodeIdUnknown / BadNodeIdInvalid
+    IDH_LOW_INVALID_OVERFLOW = 0x06     # BadOutOfRange
+    IDH_LOW_INVALID_BADVALUE = 0x07     # BadDataLost
+    IDH_LOW_INVALID_BADQUALITY = 0x08   # BadUnexpectedError
+    IDH_LOW_INVALID_TIMEOUT = 0x09      # BadTimeout
+    IDH_LOW_INVALID_COMM = 0x0A         # BadCommunicationError
+    IDH_LOW_INVALID_DEVICE = 0x0B       # BadDeviceFailure
+    IDH_LOW_INVALID_CONFIG = 0x0C       # BadConfigurationError
+    IDH_LOW_INVALID_LICENSE = 0x0D      # BadLicenseExpired
+    IDH_LOW_INVALID_RESOURCE = 0x0E     # BadResourceUnavailable
+    IDH_LOW_INVALID_INTERNAL = 0x0F     # BadInternalError
+
+    # UNCERTAIN States (0x10–0x1F)
+    IDH_LOW_UNCERTAIN_DATA = 0x10         # Uncertain
+    IDH_LOW_UNCERTAIN_LASTVALUE = 0x11    # UncertainLastUsableValue
+    IDH_LOW_UNCERTAIN_ESTIMATED = 0x12    # UncertainEstimatedValue
+    IDH_LOW_UNCERTAIN_SUBSTITUTE = 0x13   # UncertainSubstituteValue
+    IDH_LOW_UNCERTAIN_CALIBRATING = 0x14  # UncertainSensorNotAccurate
+    IDH_LOW_UNCERTAIN_ENGUNIT = 0x15      # UncertainEngineeringUnitsExceeded
+    IDH_LOW_UNCERTAIN_LOWDATA = 0x16      # UncertainDataSubNormal
+    IDH_LOW_UNCERTAIN_HOLD = 0x17         # Hold last value
+    IDH_LOW_UNCERTAIN_DERIVED = 0x18      # Derived value
+    IDH_LOW_UNCERTAIN_SIMULATED = 0x19    # Simulated value
+    IDH_LOW_UNCERTAIN_MANUALINPUT = 0x1A  # Manual input
+    IDH_LOW_UNCERTAIN_TIMESYNC = 0x1B     # Time sync error
+    IDH_LOW_UNCERTAIN_FILTERED = 0x1C     # Filtered value
+    IDH_LOW_UNCERTAIN_PREPROCESS = 0x1D   # Preprocessed value
+    IDH_LOW_UNCERTAIN_AGGREGATED = 0x1E   # Aggregated value
+    IDH_LOW_UNCERTAIN_RESERVED = 0x1F
+
+    # GOOD / LIMIT States (0x20–0x2F)
+    IDH_LOW_GOOD_NORMAL = 0x20       # Good
+    IDH_LOW_GOOD_HIGHLIMIT = 0x21    # GoodClamped - High limit
+    IDH_LOW_GOOD_LOWLIMIT = 0x22     # GoodClamped - Low limit
+    IDH_LOW_GOOD_HIGHHIGH = 0x23     # High alarm
+    IDH_LOW_GOOD_LOWLOW = 0x24       # Low alarm
+    IDH_LOW_GOOD_RATELIMIT = 0x25    # Rate limited
+    IDH_LOW_GOOD_MANUAL = 0x26       # Manually entered
+    IDH_LOW_GOOD_OVERRIDE = 0x27     # Manual override
+    IDH_LOW_GOOD_BYPASS = 0x28       # Control bypass
+    IDH_LOW_GOOD_MAINTENANCE = 0x29  # Maintenance mode
+    IDH_LOW_GOOD_STARTUP = 0x2A      # Startup phase
+    IDH_LOW_GOOD_SHUTDOWN = 0x2B     # Shutdown phase
+    IDH_LOW_GOOD_WARMUP = 0x2C       # Warmup
+    IDH_LOW_GOOD_STANDBY = 0x2D      # Standby
+    IDH_LOW_GOOD_TESTMODE = 0x2E     # Test mode
+    IDH_LOW_GOOD_SIMULATION = 0x2F   # Simulation mode
+
+    # SYSTEM / PLATFORM ERRORS (0x30–0x3F)
+    IDH_LOW_SYS_DBWRITEFAILED = 0x30  # Database write failed
+    IDH_LOW_SYS_CACHEOVERFLOW = 0x31  # Cache overflow
+    IDH_LOW_SYS_DISKFULL = 0x32       # Disk full
+    IDH_LOW_SYS_PERMISSION = 0x33     # Permission denied
+    IDH_LOW_SYS_PROTOCOL = 0x34       # Protocol error
+    IDH_LOW_SYS_CODEC = 0x35          # Codec error
+    IDH_LOW_SYS_CHECKSUM = 0x36       # Checksum error
+    IDH_LOW_SYS_VERSION = 0x37        # Version mismatch
+    IDH_LOW_SYS_DEPENDENCY = 0x38     # Dependency failed
+    IDH_LOW_SYS_SERVICE = 0x39        # Service unavailable
+    IDH_LOW_SYS_NODENOTFOUND = 0x3A   # Node not found
+    IDH_LOW_SYS_TYPEMISMATCH = 0x3B   # Type mismatch
+    IDH_LOW_SYS_ADDRINVALID = 0x3C    # Address invalid
+    IDH_LOW_SYS_UNAUTHORIZED = 0x3D   # Unauthorized
+    IDH_LOW_SYS_THROTTLED = 0x3E      # Throttled
+    IDH_LOW_SYS_UNKNOWN = 0x3F         # Unknown error
+
+class IDH_RTSOURCE_FLAG(Enum):
+    IDH_RTSOURCE_FLAG_NONE = 0x0
+    IDH_RTSOURCE_FLAG_SUBSCRIBE = 0x1 # support subscribe
+    IDH_RTSOURCE_FLAG_RECONNECT = 0x2 # auto reconnect on connection lost
 
 class IDH_RTSOURCE(Enum):
     IDH_RTSOURCE_UA = 0
     IDH_RTSOURCE_DA = 1
-    IDH_RTSOURCE_COUNT = 2
+    IDH_RTSOURCE_CSV = 2
+    IDH_RTSOURCE_COUNT = 3
 
 class IDH_NODETYPE(Enum):
     IDH_NODETYPE_UNKNOWN = 0
@@ -148,24 +219,44 @@ class IDH_NODETYPE(Enum):
 
 class idh_source_desc_t(Structure):
     _fields_ = [
-        ("source_type", c_int),
+        ("source_type", c_byte),  # IDH_RTSOURCE is unsigned char
         ("name", c_char * 256),
         ("schema", c_char * 256),
     ]
 
 class idh_tag_t(Structure):
     _fields_ = [
-        ("data_type", c_byte),
+        ("data_type", c_ushort),
         ("namespace_index", c_ushort),
         ("tag_name", c_char_p),
     ]
 
 class idh_real_t(Structure):
     _fields_ = [
-        ("quality", c_ushort),        # IDH_QUALITY
-        ("timestamp", c_longlong),    # million seconds from epoch
-        ("value", c_double),
+        ("value", c_double),            # value
+        ("time_quality", c_ulonglong),  # [55:48]=quality, [48:0]=timestamp(ms since 2000-01-01)
     ]
+    
+    # Constants for time_quality field
+    IDH_TQ_QUALITY_SHIFT = 48
+    IDH_TQ_TIME_MASK = 0x0000FFFFFFFFFFFF
+    
+    def get_quality(self):
+        """Extract quality from time_quality field"""
+        return (self.time_quality >> self.IDH_TQ_QUALITY_SHIFT) & 0xFF
+    
+    def get_quality_high(self):
+        """Extract high 2-bit quality class"""
+        return self.get_quality() & IDH_QUALITY.IDH_HIGH_MASK.value
+    
+    def get_timestamp(self):
+        """Extract timestamp from time_quality field (ms since 2000-01-01)"""
+        return self.time_quality & self.IDH_TQ_TIME_MASK
+    
+    @staticmethod
+    def make_time_quality(quality, timestamp_ms):
+        """Create time_quality value from quality and timestamp"""
+        return ((quality & 0xFF) << idh_real_t.IDH_TQ_QUALITY_SHIFT) | (timestamp_ms & idh_real_t.IDH_TQ_TIME_MASK)
 
 class idh_browse_item_t(Structure):
     _fields_ = [
@@ -210,7 +301,7 @@ libidh.idh_source_create.argtypes = [
     c_uint,
     c_char_p,
     c_int,
-    c_int,
+    c_uint,  # flag is unsigned int
 ]
 
 # idh_source_valid
@@ -243,6 +334,10 @@ libidh.idh_source_writevalues.argtypes = [
 # idh_group_create
 libidh.idh_group_create.restype = idh_group_t
 libidh.idh_group_create.argtypes = [idh_source_t, c_char_p]
+
+# idh_group_clear
+libidh.idh_group_clear.restype = None
+libidh.idh_group_clear.argtypes = [idh_group_t]
 
 # idh_group_subscribe
 libidh.idh_group_subscribe.restype = c_int
@@ -355,13 +450,13 @@ class IDHLibrary:
             source_array[i] = array[i]
         return result
 
-    def create_source(self, source_type, source_schema, sample_timespan_msec, support_subscribe):
+    def create_source(self, source_type, source_schema, sample_timespan_msec, source_flag):
         return libidh.idh_source_create(
             self.handle,
             source_type,
             source_schema.encode('utf-8'),
             sample_timespan_msec,
-            support_subscribe
+            source_flag
         )
 
     def is_source_valid(self, source):
@@ -585,7 +680,7 @@ def main():
         source_type=IDH_RTSOURCE.IDH_RTSOURCE_UA.value,
         source_schema="opc.tcp://DESKTOP-S7QB5IR:48010",
         sample_timespan_msec=1000,
-        support_subscribe=1
+        support_flag=IDH_RTSOURCE_FLAG.IDH_RTSOURCE_FLAG_SUBSCRIBE.value
     )
     if IDH_INVALID_HANDLE == source:
         print("Failed to create group.")
@@ -625,7 +720,9 @@ def main():
     read_result, values = idh.read_values(source, tags)
     print(f"Read Result: {read_result}")
     for value in values:
-        print(f"Quality: {value.quality}, Timestamp: {value.timestamp}, Value: {value.value}")
+        quality = value.get_quality()
+        timestamp = value.get_timestamp()
+        print(f"Quality: {quality}, Timestamp: {timestamp}, Value: {value.value}")
 
     # Write values example
     write_values = [123.456, 789.012]
@@ -646,7 +743,9 @@ def main():
     group_read_result, group_values = idh.read_group_values(group, handles)
     print(f"Group Read Result: {group_read_result}")
     for value in group_values:
-        print(f"Group Quality: {value.quality}, Group Timestamp: {value.timestamp}, Group Value: {value.value}")
+        quality = value.get_quality()
+        timestamp = value.get_timestamp()
+        print(f"Group Quality: {quality}, Group Timestamp: {timestamp}, Group Value: {value.value}")
 
     # Write group values
     group_write_values = [654.321, 210.987]

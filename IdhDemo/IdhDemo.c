@@ -1,4 +1,4 @@
-// IdhTest.cpp : This file contains the 'main' function. Program execution begins and ends there.
+﻿// IdhTest.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
 #include <stdio.h>
@@ -6,8 +6,11 @@
 #include <time.h>
 #include <idh/libidh.h>
 
+#ifdef _WIN32
+#    include <windows.h>
+#    pragma comment(lib, "libidh.lib")
+#endif
 #ifdef _DEBUG
-
 __declspec(dllimport) void idh_test();
 #endif
 
@@ -20,7 +23,7 @@ static void test_source_read(idh_source_t source, idh_tag_t tags[9]) {
 
     for (int i = 0; i < 9; ++i) {
         printf("value: %hu:%s value:%f, quality:%hx\n", tags[i].namespace_index, tags[i].tag_name,
-               read_values[i].value, read_values[i].quality);
+               read_values[i].value, idh_get_quality(read_values[i].time_quality));
     }
 }
 
@@ -49,7 +52,8 @@ static void test_source_write(idh_source_t source, idh_tag_t tags[9]) {
 static void test_batch_subscribe(idh_group_t batch, long long tag_handles[9], idh_tag_t tags[9]) {
     int ret = idh_group_subscribe(batch, tag_handles, tags, 9);
     for (int i = 0; i < 9; ++i) {
-        printf("subscribe: %hu:%s handle:%llx\n", tags[i].namespace_index, tags[i].tag_name, tag_handles[i]);
+        printf("subscribe: %hu:%s handle:%llx\n", tags[i].namespace_index, tags[i].tag_name,
+               tag_handles[i]);
     }
 }
 
@@ -66,7 +70,8 @@ static void test_batch_readvalues(idh_group_t batch, long long tag_handles[9], i
 
     for (int i = 0; i < 9; ++i) {
         printf("batch read: %hu:%s value:%f quality:%hx\n", tags[i].namespace_index,
-               tags[i].tag_name, read_values[i].value, read_values[i].quality);
+               tags[i].tag_name, read_values[i].value,
+               idh_get_quality(read_values[i].time_quality));
     }
 }
 
@@ -95,6 +100,10 @@ static void test_batch_writevalues(idh_group_t batch, long long tag_handles[9], 
 int main() {
     int ret = 0;
 
+#ifdef _WIN32
+    SetConsoleCP(CP_UTF8);
+    SetConsoleOutputCP(CP_UTF8);
+#endif
     srand((unsigned)time(NULL));
 
     idh_handle_t idh = idh_instance_create();
@@ -161,15 +170,11 @@ int main() {
 
     {
         idh_tag_t tags[] = {
-            {IDH_DATATYPE_REAL, 3, "MV1"},
-            {IDH_DATATYPE_REAL, 3, "MV1"},
-            {IDH_DATATYPE_REAL, 3, "MV1"},
-            {IDH_DATATYPE_REAL, 3, "CV1"},
-            {IDH_DATATYPE_REAL, 3, "CV2"},
-            {IDH_DATATYPE_REAL, 3, "CV3"},
-            {IDH_DATATYPE_REAL, 3, "DV3"}, //not exists
-            {IDH_DATATYPE_REAL, 3, "DV1"},
-            {IDH_DATATYPE_REAL, 3, "DV2"},
+            {IDH_DATATYPE_REAL, 3, "MV1"}, {IDH_DATATYPE_REAL, 3, "MV1"},
+            {IDH_DATATYPE_REAL, 3, "MV1"}, {IDH_DATATYPE_REAL, 3, "CV1"},
+            {IDH_DATATYPE_REAL, 3, "CV2"}, {IDH_DATATYPE_REAL, 3, "CV3"},
+            {IDH_DATATYPE_REAL, 3, "DV3"},  // not exists
+            {IDH_DATATYPE_REAL, 3, "DV1"}, {IDH_DATATYPE_REAL, 3, "DV2"},
         };
 
         idh_source_t source =
