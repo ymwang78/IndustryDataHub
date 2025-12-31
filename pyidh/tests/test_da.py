@@ -17,7 +17,7 @@ class TestDADataSource(unittest.TestCase):
     def test_da_source(self):
         source = self.idh.create_source(
             source_type=IDH_RTSOURCE.IDH_RTSOURCE_DA.value,
-            source_schema="TaiJi.OPC.Sim",
+            source_schema="opc.da://localhost/TaiJi.OPC.Sim",
             sample_timespan_msec=1000,
             support_subscribe=1
         )
@@ -27,12 +27,12 @@ class TestDADataSource(unittest.TestCase):
             {
                 "data_type": IDH_DATATYPE.IDH_DATATYPE_REAL.value,
                 "namespace_index": 1,
-                "tag_name": "Channel1.Device1.Tag1"
+                "tag_name": "MV1"
             },
             {
                 "data_type": IDH_DATATYPE.IDH_DATATYPE_REAL.value,
                 "namespace_index": 1,
-                "tag_name": "Channel1.Device1.Tag2"
+                "tag_name": "CV2"
             }
         ]
         group = self.idh.create_group(source, "TestGroup")

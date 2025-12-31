@@ -40,13 +40,13 @@ def load_libidh():
     if not os.path.exists(lib_path):
         raise FileNotFoundError(f"Could not find {lib_name} in {platform_dir}")
 
-        try:
+    try:
         if sys.platform.startswith("win"):
             lib = ctypes.WinDLL(lib_path)
         else:
             lib = ctypes.CDLL(lib_path)
         print(f"Loaded {lib_name} from {platform_dir}")
-    return lib
+        return lib
     except OSError as e:
         raise OSError(f"Failed to load {lib_name} from {platform_dir}: {e}")
 
@@ -301,7 +301,7 @@ libidh.idh_source_create.argtypes = [
     c_uint,
     c_char_p,
     c_int,
-    c_uint,  # flag is unsigned int
+    c_uint,
 ]
 
 # idh_source_valid
@@ -680,7 +680,7 @@ def main():
         source_type=IDH_RTSOURCE.IDH_RTSOURCE_UA.value,
         source_schema="opc.tcp://DESKTOP-S7QB5IR:48010",
         sample_timespan_msec=1000,
-        support_flag=IDH_RTSOURCE_FLAG.IDH_RTSOURCE_FLAG_SUBSCRIBE.value
+        source_flag=IDH_RTSOURCE_FLAG.IDH_RTSOURCE_FLAG_SUBSCRIBE.value
     )
     if IDH_INVALID_HANDLE == source:
         print("Failed to create group.")
