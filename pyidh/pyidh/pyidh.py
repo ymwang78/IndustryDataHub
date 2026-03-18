@@ -1,10 +1,11 @@
-﻿import ctypes
+import ctypes
 from ctypes import (
     c_int,
     c_uint,
     c_ulonglong,  # for uint64_t
     c_longlong,
     c_ushort,
+    c_ubyte,
     c_byte,
     c_char,
     c_char_p,
@@ -219,7 +220,7 @@ class IDH_NODETYPE(Enum):
 
 class idh_source_desc_t(Structure):
     _fields_ = [
-        ("source_type", c_byte),  # IDH_RTSOURCE is unsigned char
+        ("source_type", c_uint),
         ("name", c_char * 256),
         ("schema", c_char * 256),
     ]
@@ -446,8 +447,12 @@ class IDHLibrary:
             port
         )
         # copy result back to source_array
-        for i in range(result):
-            source_array[i] = array[i]
+        if result > 0:
+            count = min(result, len(source_array))
+            for i in range(count):
+                source_array[i].source_type = array[i].source_type
+                source_array[i].name = array[i].name
+                source_array[i].schema = array[i].schema
         return result
 
     def create_source(self, source_type, source_schema, sample_timespan_msec, source_flag):

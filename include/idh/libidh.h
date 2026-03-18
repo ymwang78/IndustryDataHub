@@ -185,7 +185,7 @@ typedef enum _IDH_RTSOURCE_FLAG {
     IDH_RTSOURCE_FLAG_RECONNECT = 0x2,  // auto reconnect on connection lost
 } IDH_RTSOURCE_FLAG;
 
-typedef enum _IDH_RTSOURCE : uint8_t {
+typedef enum _IDH_RTSOURCE {
     IDH_RTSOURCE_UA,
     IDH_RTSOURCE_DA,
     IDH_RTSOURCE_CSV,
@@ -218,9 +218,7 @@ typedef struct _idh_real {
 #define IDH_TQ_QUALITY_SHIFT 48
 #define IDH_TQ_TIME_MASK 0x0000FFFFFFFFFFFFULL
 
-static inline uint8_t idh_get_quality(uint64_t tq) {
-    return (uint8_t)(tq >> IDH_TQ_QUALITY_SHIFT);
-}
+static inline uint8_t idh_get_quality(uint64_t tq) { return (uint8_t)(tq >> IDH_TQ_QUALITY_SHIFT); }
 
 static inline uint8_t idh_get_quality_high(uint64_t tq) {
     return (IDH_HIGH_MASK & (uint8_t)(tq >> IDH_TQ_QUALITY_SHIFT));
@@ -246,14 +244,14 @@ typedef enum _IDH_NODETYPE {
 
 typedef struct _idh_browse_item {
     uint16_t namespace_index;
-    char node_name[256];         // 节点名称
-    char display_name[256];      // 显示名称
-    char description[512];       // 节点描述
-    IDH_NODETYPE node_type;      // 节点类型
-    IDH_DATATYPE data_type;      // 数据类型（仅变量节点有效）
-    uint8_t is_readable;   // 是否可读
-    uint8_t is_writable;   // 是否可写
-    uint8_t has_children;  // 是否有子节点
+    char node_name[256];     // 节点名称
+    char display_name[256];  // 显示名称
+    char description[512];   // 节点描述
+    IDH_NODETYPE node_type;  // 节点类型
+    IDH_DATATYPE data_type;  // 数据类型（仅变量节点有效）
+    uint8_t is_readable;     // 是否可读
+    uint8_t is_writable;     // 是否可写
+    uint8_t has_children;    // 是否有子节点
 } idh_browse_item_t;
 
 LIBIDH_API idh_handle_t idh_instance_create();
@@ -266,8 +264,7 @@ LIBIDH_API int idh_set_log_level(ZLOG_LEVEL level);
 LIBIDH_API int idh_get_log_level(ZLOG_LEVEL* level);
 
 LIBIDH_API int idh_instance_discovery(idh_handle_t handle, idh_source_desc_t* source_vec,
-                                      unsigned source_size, const char* hostname,
-                                      uint16_t port);
+                                      unsigned source_size, const char* hostname, uint16_t port);
 /* data source */
 
 LIBIDH_API idh_source_t idh_source_create(idh_handle_t handle, IDH_RTSOURCE source_type,
