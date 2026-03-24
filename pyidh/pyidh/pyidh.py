@@ -13,7 +13,11 @@ from ctypes import (
     c_void_p,
     POINTER,
     Structure,
+    addressof,
     byref,
+    create_string_buffer,
+    memmove,
+    sizeof,
 )
 from enum import Enum
 import ctypes.util
@@ -483,20 +487,21 @@ class IDHLibrary:
         if not isinstance(source_array, list) or not all(isinstance(x, idh_source_desc_t) for x in source_array):
             raise TypeError("source_array must be a list of idh_source_desc_t")
         array = (idh_source_desc_t * len(source_array))(*source_array)
+        # 保证 C 端在调用期间 hostname 缓冲区有效；避免临时 bytes 与 c_char_p 生命周期问题
+        host_buf = create_string_buffer(hostname.encode('utf-8'))
         result = libidh.idh_instance_discovery(
             self.handle,
             array,
             len(source_array),
-            hostname.encode('utf-8'),
-            port
+            host_buf,
+            port,
         )
         # copy result back to source_array
         if result > 0:
             count = min(result, len(source_array))
+            desc_sz = sizeof(idh_source_desc_t)
             for i in range(count):
-                source_array[i].source_type = array[i].source_type
-                source_array[i].name = array[i].name
-                source_array[i].schema = array[i].schema
+                memmove(addressof(source_array[i]), addressof(array[i]), desc_sz)
         return result
 
     def create_source(self, source_type, source_schema, sample_timespan_msec, source_flag):
