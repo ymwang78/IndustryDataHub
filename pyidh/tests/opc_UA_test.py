@@ -16,7 +16,7 @@ def main():
         source_type=IDH_RTSOURCE.IDH_RTSOURCE_UA.value,  # OPC UA
         source_schema=opcua_url,
         sample_timespan_msec=1000,
-        support_subscribe=1
+        source_flag=0
     )
     if source == IDH_INVALID_HANDLE:
         print("创建 OPC UA source 失败.")

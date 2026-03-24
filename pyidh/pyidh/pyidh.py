@@ -245,14 +245,44 @@ class idh_real_t(Structure):
     def get_quality(self):
         """Extract quality from time_quality field"""
         return (self.time_quality >> self.IDH_TQ_QUALITY_SHIFT) & 0xFF
+
+    @property
+    def quality(self):
+        return self.get_quality()
     
     def get_quality_high(self):
         """Extract high 2-bit quality class"""
         return self.get_quality() & IDH_QUALITY.IDH_HIGH_MASK.value
-    
+
+    def get_quality_low(self):
+        """Extract low 6-bit quality class"""
+        return self.get_quality() & ~IDH_QUALITY.IDH_HIGH_MASK.value
+
     def get_timestamp(self):
         """Extract timestamp from time_quality field (ms since 2000-01-01)"""
         return self.time_quality & self.IDH_TQ_TIME_MASK
+
+    def get_timestamp_desc(self):
+        """Get human-readable timestamp description"""
+        timestamp_ms = self.get_timestamp()
+        import datetime
+
+        base_time = datetime.datetime(2000, 1, 1)
+        max_delta = datetime.datetime.max - base_time
+        max_supported_ms = (
+            max_delta.days * 24 * 60 * 60 * 1000
+            + max_delta.seconds * 1000
+            + max_delta.microseconds // 1000
+        )
+        if timestamp_ms > max_supported_ms:
+            return f"{timestamp_ms} ms since 2000-01-01"
+
+        timestamp = base_time + datetime.timedelta(milliseconds=timestamp_ms)
+        return timestamp.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+    @property
+    def timestamp(self):
+        return self.get_timestamp()
     
     @staticmethod
     def make_time_quality(quality, timestamp_ms):

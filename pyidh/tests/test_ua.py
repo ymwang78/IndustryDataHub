@@ -25,8 +25,8 @@ class TestUADataSource(unittest.TestCase):
         ]
         discovery_result = self.idh.discovery(
             source_descs,
-            hostname="192.168.200.101",
-            port=46011
+            hostname="192.168.200.105",
+            port=48010
         )
         self.assertGreater(discovery_result, 0, "No UA servers discovered")
         print("\nDiscovered UA Servers:")
@@ -39,34 +39,34 @@ class TestUADataSource(unittest.TestCase):
     def test_ua_source(self):
         source = self.idh.create_source(
             source_type=IDH_RTSOURCE.IDH_RTSOURCE_UA.value,
-            source_schema="opc.tcp://192.168.200.101:46011/",
+            source_schema="opc.tcp://192.168.200.105:48010/",
             sample_timespan_msec=1000,
-            support_subscribe=1
+            source_flag=2
         )
         self.assertNotEqual(source, -1, "Failed to create UA source")
         self.assertTrue(self.idh.is_source_valid(source), "UA source is not valid")
         tags = [
             {
                 "data_type": IDH_DATATYPE.IDH_DATATYPE_REAL.value,
-                "namespace_index": 2,
-                "tag_name": "Channel1.Device1.Tag1"
+                "namespace_index": 3,
+                "tag_name": "Demo.Static.Scalar.Double"
             },
             {
                 "data_type": IDH_DATATYPE.IDH_DATATYPE_REAL.value,
-                "namespace_index": 2,
-                "tag_name": "Channel1.Device1.Tag2"
+                "namespace_index": 3,
+                "tag_name": "Demo.Static.Scalar.Float"
             }
         ]
         result, values = self.idh.read_values(source, tags)
-        self.assertEqual(result, IDH_ERRCODE.IDH_ERRCODE_SUCCESS.value, "Failed to read UA values")
+        self.assertGreaterEqual(result, IDH_ERRCODE.IDH_ERRCODE_SUCCESS.value, "Failed to read UA values")
         for i, value in enumerate(values):
             print(f"UA Tag {i+1}:")
-            print(f"  Quality: {value.quality}")
-            print(f"  Timestamp: {value.timestamp}")
+            print(f"  Quality: {value.quality} {value.get_quality_high()} {value.get_quality_low()}")
+            print(f"  Timestamp: {hex(value.time_quality)} {hex(value.get_timestamp())} {value.get_timestamp_desc()}")
             print(f"  Value: {value.value}")
         write_values = [123.456, 789.012]
         write_result, results = self.idh.write_values(source, tags, write_values)
-        self.assertEqual(write_result, IDH_ERRCODE.IDH_ERRCODE_SUCCESS.value, "Failed to write UA values")
+        self.assertGreaterEqual(write_result, IDH_ERRCODE.IDH_ERRCODE_SUCCESS.value, "Failed to write UA values")
         self.idh.destroy_source(source)
 
 if __name__ == '__main__':

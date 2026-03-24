@@ -25,8 +25,7 @@ idh = IDHLibrary()
 source = idh.create_source(
     source_type=IDH_RTSOURCE.IDH_RTSOURCE_UA.value,
     source_schema="opc.tcp://localhost:4840",
-    sample_timespan_msec=1000,
-    support_subscribe=1
+    sample_timespan_msec=1000
 )
 
 # Read data
