@@ -11,7 +11,7 @@ def main():
     idh = IDHLibrary()
 
     # 2. 连接 OPC UA 服务器
-    opcua_url = "opc.tcp://1.95.140.236:46011"
+    opcua_url = "opc.tcp://192.168.200.105:46011"
     source = idh.create_source(
         source_type=IDH_RTSOURCE.IDH_RTSOURCE_UA.value,  # OPC UA
         source_schema=opcua_url,
