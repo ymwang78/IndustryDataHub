@@ -259,6 +259,20 @@ class idh_real_t(Structure):
         """Create time_quality value from quality and timestamp"""
         return ((quality & 0xFF) << idh_real_t.IDH_TQ_QUALITY_SHIFT) | (timestamp_ms & idh_real_t.IDH_TQ_TIME_MASK)
 
+    @staticmethod
+    def get_high_quality_description(quality):
+        """Get human-readable description of quality high"""
+        high = quality & IDH_QUALITY.IDH_HIGH_MASK.value
+
+        if high == IDH_QUALITY.IDH_HIGH_GOOD.value:
+            return "Good"
+        elif high == IDH_QUALITY.IDH_HIGH_UNCERTAIN.value:
+            return "Uncertain"
+        elif high == IDH_QUALITY.IDH_HIGH_BAD.value:
+            return "Bad"
+        else:
+            return "Invalid"
+
 class idh_browse_item_t(Structure):
     _fields_ = [
         ("namespace_index", c_ushort),
