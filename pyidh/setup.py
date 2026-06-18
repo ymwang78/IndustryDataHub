@@ -60,7 +60,7 @@ except FileNotFoundError as e:
 
 setup(
     name="pyidh",
-    version="0.2.2",
+    version="26.6.0",
     packages=find_packages(),
     package_data={
         "pyidh": library_files,   # Include binaries under pyidh/<platform>

@@ -13,11 +13,7 @@ from ctypes import (
     c_void_p,
     POINTER,
     Structure,
-    addressof,
     byref,
-    create_string_buffer,
-    memmove,
-    sizeof,
 )
 from enum import Enum
 import ctypes.util
@@ -357,6 +353,14 @@ libidh.idh_source_create.argtypes = [
 libidh.idh_source_valid.restype = c_int
 libidh.idh_source_valid.argtypes = [idh_source_t]
 
+# idh_source_set_sync_cache_msec
+libidh.idh_source_set_sync_cache_msec.restype = c_int
+libidh.idh_source_set_sync_cache_msec.argtypes = [idh_source_t, c_int]
+
+# idh_source_get_sync_cache_msec
+libidh.idh_source_get_sync_cache_msec.restype = c_int
+libidh.idh_source_get_sync_cache_msec.argtypes = [idh_source_t]
+
 # idh_source_destroy
 libidh.idh_source_destroy.restype = None
 libidh.idh_source_destroy.argtypes = [idh_source_t]
@@ -487,21 +491,20 @@ class IDHLibrary:
         if not isinstance(source_array, list) or not all(isinstance(x, idh_source_desc_t) for x in source_array):
             raise TypeError("source_array must be a list of idh_source_desc_t")
         array = (idh_source_desc_t * len(source_array))(*source_array)
-        # 保证 C 端在调用期间 hostname 缓冲区有效；避免临时 bytes 与 c_char_p 生命周期问题
-        host_buf = create_string_buffer(hostname.encode('utf-8'))
         result = libidh.idh_instance_discovery(
             self.handle,
             array,
             len(source_array),
-            host_buf,
-            port,
+            hostname.encode('utf-8'),
+            port
         )
         # copy result back to source_array
         if result > 0:
             count = min(result, len(source_array))
-            desc_sz = sizeof(idh_source_desc_t)
             for i in range(count):
-                memmove(addressof(source_array[i]), addressof(array[i]), desc_sz)
+                source_array[i].source_type = array[i].source_type
+                source_array[i].name = array[i].name
+                source_array[i].schema = array[i].schema
         return result
 
     def create_source(self, source_type, source_schema, sample_timespan_msec, source_flag):
@@ -515,6 +518,14 @@ class IDHLibrary:
 
     def is_source_valid(self, source):
         return bool(libidh.idh_source_valid(source))
+
+    def set_sync_cache_msec(self, source, msec):
+        # 设置同步读模式(订阅时间为0)下的缓存有效窗口(毫秒), 默认100ms; 0=每次必读OPC
+        return libidh.idh_source_set_sync_cache_msec(source, msec)
+
+    def get_sync_cache_msec(self, source):
+        # 获取当前同步读缓存窗口(毫秒); 返回>=0为窗口值, 负值为错误码
+        return libidh.idh_source_get_sync_cache_msec(source)
 
     def destroy_source(self, source):
         libidh.idh_source_destroy(source)
