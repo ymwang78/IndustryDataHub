@@ -56,8 +56,10 @@ def build_wheel_for_platform(platform):
     env["IDH_TARGET_PLATFORM"] = platform
 
     dist_dir = Path("pyidh/dist")
-    if dist_dir.exists():
-        shutil.rmtree(dist_dir)
+    for build_path in [dist_dir, Path("pyidh/build"), Path("pyidh/pyidh.egg-info")]:
+        if build_path.exists():
+            print(f"Removing stale build path: {build_path}")
+            shutil.rmtree(build_path)
 
     # 1. Build wheel
     cmd = "python3 -m build --wheel"
