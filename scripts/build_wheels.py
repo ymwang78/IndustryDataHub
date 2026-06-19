@@ -18,11 +18,6 @@ PLATFORMS = [
     "linux_aarch64"
 ]
 
-AUDITWHEEL_PLATFORMS = {
-    "linux_x86_64": "manylinux_2_28_x86_64",
-    "linux_aarch64": "manylinux_2_28_aarch64",
-}
-
 def run_command(cmd, cwd=None):
     """Run a command and check the result"""
     print(f"Running command: {cmd}")
@@ -88,8 +83,7 @@ def build_wheel_for_platform(platform):
         if repaired_dir.exists():
             shutil.rmtree(repaired_dir)
 
-        auditwheel_platform = AUDITWHEEL_PLATFORMS[platform]
-        cmd = f"auditwheel repair --plat {auditwheel_platform} {wheel} -w {repaired_dir}"
+        cmd = f"auditwheel repair {wheel} -w {repaired_dir}"
         print(f"Running command: {cmd}")
         result = subprocess.run(cmd, shell=True, text=True, encoding="utf-8")
         if result.returncode != 0:
