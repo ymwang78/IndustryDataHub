@@ -4,6 +4,16 @@ import platform
 import os
 from pathlib import Path
 
+LINUX_WHEEL_PLATFORM_TAGS = {
+    "linux_x86_64": "manylinux_2_28_x86_64",
+    "linux_aarch64": "manylinux_2_28_aarch64",
+}
+
+PACKAGE_PLATFORM_ALIASES = {
+    wheel_tag: package_platform
+    for package_platform, wheel_tag in LINUX_WHEEL_PLATFORM_TAGS.items()
+}
+
 def get_target_platform():
     """Get target platform information"""
     target_platform = os.environ.get("IDH_TARGET_PLATFORM")
@@ -26,9 +36,22 @@ def get_target_platform():
 
     return f"{machine}_{system}"
 
+def get_package_platform(target_platform):
+    """Get the package directory that contains precompiled libraries."""
+    return PACKAGE_PLATFORM_ALIASES.get(target_platform, target_platform)
+
+def get_wheel_platform_tag(target_platform):
+    """Get the wheel platform tag advertised to installers."""
+    wheel_platform_tag = os.environ.get("IDH_WHEEL_PLATFORM_TAG")
+    if wheel_platform_tag:
+        return wheel_platform_tag
+
+    return LINUX_WHEEL_PLATFORM_TAGS.get(target_platform, target_platform)
+
 def get_precompiled_library_files(target_platform):
     """Get precompiled library files (relative to pyidh/)"""
-    platform_dir = Path("pyidh") / target_platform
+    package_platform = get_package_platform(target_platform)
+    platform_dir = Path("pyidh") / package_platform
     if not platform_dir.exists():
         raise FileNotFoundError(f"Precompiled library directory not found: {platform_dir}")
 
@@ -49,7 +72,9 @@ def get_install_requires(target_platform):
     return base_requires
 
 target_platform = get_target_platform()
+wheel_platform_tag = get_wheel_platform_tag(target_platform)
 print(f"Building for target platform: {target_platform}")
+print(f"Using wheel platform tag: {wheel_platform_tag}")
 
 try:
     library_files = get_precompiled_library_files(target_platform)
@@ -95,7 +120,7 @@ setup(
     zip_safe=False,
     options={
         "bdist_wheel": {
-            "plat_name": target_platform
+            "plat_name": wheel_platform_tag
         }
     }
 )
