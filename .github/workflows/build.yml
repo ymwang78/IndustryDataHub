@@ -34,6 +34,24 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Verify version matches release tag
+      if: github.event_name == 'release'
+      run: |
+        set -euo pipefail
+        tag_version="${GITHUB_REF_NAME#v}"
+        setup_version=$(grep -m1 -E '^[[:space:]]*version="' pyidh/setup.py | cut -d'"' -f2)
+        if [ -z "$setup_version" ]; then
+          echo "::error::无法从 pyidh/setup.py 解析出 version"
+          exit 1
+        fi
+        if [ "$tag_version" != "$setup_version" ]; then
+          echo "::error::版本号不一致: tag 为 '$GITHUB_REF_NAME' (=> $tag_version)，但 pyidh/setup.py 中是 '$setup_version'。"
+          echo "::error::请把 tag 打在已升版本号的 commit 上，或先更新 pyidh/setup.py，否则会构建出旧版本号的 wheel 并被 PyPI 拒绝。"
+          exit 1
+        fi
+        echo "版本号校验通过: $setup_version"
+      shell: bash
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
