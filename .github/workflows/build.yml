@@ -34,6 +34,24 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Verify version matches release tag
+      if: github.event_name == 'release'
+      run: |
+        set -euo pipefail
+        tag_version="${GITHUB_REF_NAME#v}"
+        setup_version=$(grep -m1 -E '^[[:space:]]*version="' pyidh/setup.py | cut -d'"' -f2 || true)
+        if [ -z "$setup_version" ]; then
+          echo "::error::无法从 pyidh/setup.py 解析出 version"
+          exit 1
+        fi
+        if [ "$tag_version" != "$setup_version" ]; then
+          echo "::error::版本号不一致: tag 为 '$GITHUB_REF_NAME' (=> $tag_version)，但 pyidh/setup.py 中是 '$setup_version'。"
+          echo "::error::请把 tag 打在已升版本号的 commit 上，或先更新 pyidh/setup.py，否则会构建出旧版本号的 wheel 并被 PyPI 拒绝。"
+          exit 1
+        fi
+        echo "版本号校验通过: $setup_version"
+      shell: bash
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -109,6 +127,31 @@ jobs:
         find wheels/ -name "*.whl" -exec cp {} dist/ \;
         echo "Final wheels to publish:"
         ls -la dist/
+
+    - name: Verify wheel filenames match release tag
+      run: |
+        set -euo pipefail
+        tag_version="${GITHUB_REF_NAME#v}"
+        shopt -s nullglob
+        wheels=(dist/*.whl)
+        if [ ${#wheels[@]} -eq 0 ]; then
+          echo "::error::dist/ 下没有任何 wheel，没有可发布的内容"
+          exit 1
+        fi
+        bad=0
+        for w in "${wheels[@]}"; do
+          wheel_version=$(basename "$w" | cut -d- -f2)
+          if [ "$wheel_version" != "$tag_version" ]; then
+            echo "::error::$(basename "$w") 的版本号为 '$wheel_version'，与 tag '$GITHUB_REF_NAME' (=> $tag_version) 不一致"
+            bad=1
+          fi
+        done
+        if [ "$bad" -ne 0 ]; then
+          echo "::error::拒绝上传：wheel 文件名与 tag 版本号不符，上传会被 PyPI 以 400 拒绝或发布出错误的版本。"
+          exit 1
+        fi
+        echo "wheel 文件名校验通过，版本号 $tag_version，共 ${#wheels[@]} 个文件"
+      shell: bash
 
     - uses: pypa/gh-action-pypi-publish@release/v1
       with:
