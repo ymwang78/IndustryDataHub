@@ -1,7 +1,11 @@
 import ctypes
 from ctypes import (
     c_int,
+    c_int32,
     c_uint,
+    c_uint8,
+    c_uint16,
+    c_uint32,
     c_ulonglong,  # for uint64_t
     c_longlong,
     c_ushort,
@@ -14,6 +18,7 @@ from ctypes import (
     POINTER,
     Structure,
     byref,
+    cast,
 )
 from enum import Enum
 import ctypes.util
@@ -56,9 +61,10 @@ libidh = load_libidh()
 def to_signed32(n):
     return n - 0x100000000 if n >= 0x80000000 else n
 
-IDH_INVALID_HANDLE = c_longlong(~0)
+# Plain int, not c_longlong: handle functions return int, and a ctypes object never equals one.
+IDH_INVALID_HANDLE = -1
 
-# 日志级别枚举
+# 日志级别枚举，取值与 libidh.h 的 ZLOG_LEVEL 一致
 class IDH_LOG_LEVEL(Enum):
     IDH_LOG_LEVEL_TRACE = 0    # 最详细的日志级别
     IDH_LOG_LEVEL_DEBUG = 1    # 调试信息
@@ -66,7 +72,8 @@ class IDH_LOG_LEVEL(Enum):
     IDH_LOG_LEVEL_WARN = 3     # 警告信息
     IDH_LOG_LEVEL_ERROR = 4    # 错误信息
     IDH_LOG_LEVEL_FATAL = 5    # 致命错误
-    IDH_LOG_LEVEL_OFF = 255    # 关闭日志
+    IDH_LOG_LEVEL_BIZDT = 6    # 业务数据日志 (ZLOG_BIZDT)
+    IDH_LOG_LEVEL_OFF = 7      # 关闭日志 (ZLOG_NONEL)
 
 class IDH_ERRCODE(Enum):
     IDH_ERRCODE_SUCCESS = 0
@@ -116,6 +123,30 @@ class IDH_DATATYPE(Enum):
     IDH_DATATYPE_REAL = 1
     IDH_DATATYPE_TIMESTAMP = 2
     IDH_DATATYPE_STRING = 3
+
+# Browse items' value_rank, the same values as the OPC UA ValueRank attribute. Plain ints, not an
+# Enum: a value n > 1 is an array with exactly n dimensions.
+IDH_VALUERANK_SCALAR_OR_ONE_DIMENSION = -3
+IDH_VALUERANK_ANY = -2  # scalar or array of any rank, or unknown
+IDH_VALUERANK_SCALAR = -1
+IDH_VALUERANK_ONE_OR_MORE_DIMENSIONS = 0  # array, rank not fixed (OPC DA arrays)
+IDH_VALUERANK_ONE_DIMENSION = 1
+
+# Element type of an array value, see idh_array_t.element_type. Elements are always passed as
+# double; this says what the server holds, for example to compare a Float array at float precision.
+class IDH_ELEMTYPE(Enum):
+    IDH_ELEMTYPE_UNKNOWN = 0
+    IDH_ELEMTYPE_BOOLEAN = 1
+    IDH_ELEMTYPE_SBYTE = 2
+    IDH_ELEMTYPE_BYTE = 3
+    IDH_ELEMTYPE_INT16 = 4
+    IDH_ELEMTYPE_UINT16 = 5
+    IDH_ELEMTYPE_INT32 = 6
+    IDH_ELEMTYPE_UINT32 = 7
+    IDH_ELEMTYPE_INT64 = 8
+    IDH_ELEMTYPE_UINT64 = 9
+    IDH_ELEMTYPE_FLOAT = 10
+    IDH_ELEMTYPE_DOUBLE = 11
 
 class IDH_QUALITY(Enum):
     # High 2-bit Quality Class
@@ -205,7 +236,8 @@ class IDH_RTSOURCE(Enum):
     IDH_RTSOURCE_UA = 0
     IDH_RTSOURCE_DA = 1
     IDH_RTSOURCE_CSV = 2
-    IDH_RTSOURCE_COUNT = 3
+    IDH_RTSOURCE_MODBUS = 3
+    IDH_RTSOURCE_COUNT = 4
 
 class IDH_NODETYPE(Enum):
     IDH_NODETYPE_UNKNOWN = 0
@@ -314,6 +346,30 @@ class idh_browse_item_t(Structure):
         ("is_readable", c_byte),            # 是否可读
         ("is_writable", c_byte),            # 是否可写
         ("has_children", c_byte),           # 是否有子节点
+        ("value_rank", c_byte),             # IDH_VALUERANK_*, 占原来的尾部填充, 结构体大小不变
+    ]
+
+IDH_ARRAY_MAX_RANK = 4
+
+# Arrays (idh_source_readarrays and friends). Elements are passed as double, and a
+# multi-dimensional array is flattened row-major (the last index varies fastest).
+class idh_array_t(Structure):
+    _fields_ = [
+        ("values", POINTER(c_double)),  # in: buffer for the elements, or NULL for the metadata only
+        ("capacity", c_uint32),         # in: number of elements values can hold
+        ("length", c_uint32),           # out: number of elements (the product of the dimensions)
+        ("time_quality", c_ulonglong),  # out: same encoding as idh_real_t
+        ("result", c_int32),            # out: 0, or a negative error code for this entry
+        ("element_type", c_uint16),     # out: IDH_ELEMTYPE
+        ("rank", c_uint8),              # out: number of dimensions; 0 for a scalar, read as one element
+        ("reserved", c_uint8),
+        ("dimensions", c_uint32 * IDH_ARRAY_MAX_RANK),  # out: dimension lengths, outermost first
+    ]
+
+class idh_array_value_t(Structure):
+    _fields_ = [
+        ("values", POINTER(c_double)),  # elements, row-major; may be NULL when length is 0
+        ("length", c_uint32),           # number of elements
     ]
 
 # Define opaque pointers as c_longlong
@@ -432,6 +488,46 @@ libidh.idh_group_writevalues.argtypes = [
 libidh.idh_group_destroy.restype = None
 libidh.idh_group_destroy.argtypes = [idh_group_t]
 
+# idh_source_readarrays
+libidh.idh_source_readarrays.restype = c_int
+libidh.idh_source_readarrays.argtypes = [
+    idh_source_t,
+    POINTER(idh_array_t),
+    POINTER(idh_tag_t),
+    POINTER(c_char_p),  # index_ranges, may be NULL
+    c_int,
+]
+
+# idh_source_writearrays
+libidh.idh_source_writearrays.restype = c_int
+libidh.idh_source_writearrays.argtypes = [
+    idh_source_t,
+    POINTER(c_int),
+    POINTER(idh_array_value_t),
+    POINTER(idh_tag_t),
+    POINTER(c_char_p),  # index_ranges, may be NULL
+    c_int,
+]
+
+# idh_group_readarrays
+libidh.idh_group_readarrays.restype = c_int
+libidh.idh_group_readarrays.argtypes = [
+    idh_group_t,
+    POINTER(idh_array_t),
+    POINTER(c_longlong),
+    c_uint,
+]
+
+# idh_group_writearrays
+libidh.idh_group_writearrays.restype = c_int
+libidh.idh_group_writearrays.argtypes = [
+    idh_group_t,
+    POINTER(c_int),
+    POINTER(idh_array_value_t),
+    POINTER(c_longlong),
+    c_uint,
+]
+
 # idh_source_browse
 libidh.idh_source_browse.restype = c_int
 libidh.idh_source_browse.argtypes = [idh_source_t, POINTER(idh_browse_item_t), POINTER(c_uint), c_ushort, c_char_p]
@@ -446,6 +542,114 @@ libidh.idh_set_log_level.argtypes = [c_int]
 
 libidh.idh_get_log_level.restype = c_int
 libidh.idh_get_log_level.argtypes = [POINTER(c_int)]
+
+# An entry whose buffer was too small (IDH_ERROR_SHRTLEN) is read again with the length the
+# library reported. The array can grow again in between, so this is tried a few times in all.
+_ARRAY_READ_ATTEMPTS = 3
+
+def _tag_array(tags):
+    tag_array = (idh_tag_t * len(tags))()
+    for i, tag in enumerate(tags):
+        tag_array[i].data_type = tag['data_type']
+        tag_array[i].namespace_index = tag['namespace_index']
+        tag_array[i].tag_name = tag['tag_name'].encode('utf-8')
+    return tag_array
+
+def _index_range_array(index_ranges, size):
+    """None, or one OPC UA NumericRange string per tag; None or "" means the whole array."""
+    if index_ranges is None:
+        return None
+    if len(index_ranges) != size:
+        raise ValueError("index_ranges needs one entry per tag")
+    return (c_char_p * size)(*[r.encode('utf-8') if r else None for r in index_ranges])
+
+def _array_values(arrays):
+    """idh_array_value_t entries for the arrays to write, plus the buffers they point into, which
+    the caller keeps alive during the call. An array is a flat sequence of numbers, or anything
+    with ravel(), such as a numpy array, which is flattened row-major."""
+    values = (idh_array_value_t * len(arrays))()
+    buffers = []
+    for i, array in enumerate(arrays):
+        if hasattr(array, 'ravel'):
+            array = array.ravel()
+        elements = [float(v) for v in array]
+        buffer = (c_double * len(elements))(*elements)
+        buffers.append(buffer)
+        values[i].values = cast(buffer, POINTER(c_double)) if elements else None
+        values[i].length = len(elements)
+    return values, buffers
+
+def _failed_results(size):
+    """Write results that start as IDH_ERRCODE_FAILED, as libidh sets them once the arguments are
+    valid: a call that fails earlier, such as on an invalid handle, leaves them alone."""
+    return (c_int * size)(*([IDH_ERRCODE.IDH_ERRCODE_FAILED.value] * size))
+
+def _array_entry(array, buffer, as_numpy):
+    """One read entry as a dict. 'values' holds the elements only when 'result' is 0."""
+    rank = array.rank
+    dimensions = [array.dimensions[d] for d in range(min(rank, IDH_ARRAY_MAX_RANK))]
+    values = list(buffer[:array.length]) if array.result == 0 and buffer is not None else []
+    if as_numpy:
+        import numpy
+        values = numpy.array(values, dtype=numpy.float64)
+        # A scalar or a one-dimensional array stays flat; deeper ranks keep their shape when
+        # every dimension is known
+        if array.result == 0 and 1 < rank <= IDH_ARRAY_MAX_RANK:
+            values = values.reshape(dimensions)
+    return {
+        'result': array.result,
+        'values': values,
+        'length': array.length,
+        'element_type': IDH_ELEMTYPE(array.element_type),
+        'rank': rank,
+        'dimensions': dimensions,
+        'time_quality': array.time_quality,
+        'quality': (array.time_quality >> idh_real_t.IDH_TQ_QUALITY_SHIFT) & 0xFF,
+        'timestamp': array.time_quality & idh_real_t.IDH_TQ_TIME_MASK,
+    }
+
+def _read_arrays(read, count, capacity, as_numpy):
+    """read(positions, arrays) runs the C read for the entries at positions. Returns the number of
+    entries read, or the first call's negative error code, and one dict per entry."""
+    capacities = [max(int(capacity), 0)] * count
+    entries = [None] * count
+    positions = list(range(count))
+    ret = None
+    for _ in range(_ARRAY_READ_ATTEMPTS):
+        arrays = (idh_array_t * len(positions))()
+        buffers = []
+        for k, i in enumerate(positions):
+            # No buffer at capacity 0: values is NULL, which libidh takes as "report the
+            # metadata only", so no pointer to a zero-length ctypes array is handed out
+            buffer = (c_double * capacities[i])() if capacities[i] else None
+            buffers.append(buffer)
+            arrays[k].values = cast(buffer, POINTER(c_double)) if buffer is not None else None
+            arrays[k].capacity = capacities[i]
+            # Start where libidh resets an entry (FAILED, INVALID|NODATA): it returns an invalid
+            # handle before the reset, and a zeroed entry would read as an empty success
+            arrays[k].result = IDH_ERRCODE.IDH_ERRCODE_FAILED.value
+            arrays[k].time_quality = idh_real_t.make_time_quality(
+                IDH_QUALITY.IDH_HIGH_INVALID.value | IDH_QUALITY.IDH_LOW_INVALID_NODATA.value, 0)
+        r = read(positions, arrays)
+        if ret is not None and r < 0:
+            break  # a retry failed as a whole: those entries keep IDH_ERROR_SHRTLEN
+        for k, i in enumerate(positions):
+            if buffers[k] is None and arrays[k].result == 0 and arrays[k].length > 0:
+                # A metadata-only read succeeds without the elements: the entry needs a
+                # buffer of 'length' elements, the same as one whose buffer was too short
+                arrays[k].result = IDH_ERRCODE.IDH_ERROR_SHRTLEN.value
+            entries[i] = _array_entry(arrays[k], buffers[k], as_numpy)
+        if ret is None:
+            ret = r
+            if r < 0:
+                return r, entries
+        positions = [i for i in positions
+                     if entries[i]['result'] == IDH_ERRCODE.IDH_ERROR_SHRTLEN.value]
+        if not positions:
+            break
+        for i in positions:
+            capacities[i] = entries[i]['length']
+    return sum(1 for entry in entries if entry['result'] == 0), entries
 
 class IDHLibrary:
     def __init__(self):
@@ -630,6 +834,101 @@ class IDHLibrary:
     def destroy_group(self, group):
         libidh.idh_group_destroy(group)
 
+    def read_arrays(self, source, tags, index_ranges=None, capacity=256, as_numpy=False):
+        """
+        Read arrays, one entry per tag (idh_source_readarrays). A scalar node is one element
+        with rank 0.
+
+        Args:
+            source: source handle
+            tags: tag dicts, as for read_values
+            index_ranges: None, or one OPC UA NumericRange per tag ("3", "2:5", "0:1,2:3");
+                None or "" reads the whole array
+            capacity: elements to allocate per entry at first. An entry that needs more
+                (IDH_ERROR_SHRTLEN) is read again with the length the library reported, so 0
+                sizes every buffer from a first, metadata-only pass
+            as_numpy: give 'values' as numpy float64 arrays, shaped like 'dimensions' for
+                multi-dimensional arrays (needs numpy)
+
+        Returns:
+            tuple: (number of entries read, or a negative error code when the whole call failed;
+                    one dict per tag with 'result', 'values' (empty unless 'result' is 0),
+                    'length', 'element_type' (IDH_ELEMTYPE), 'rank', 'dimensions',
+                    'time_quality', 'quality' and 'timestamp' (ms since 2000-01-01))
+        """
+        def read(positions, arrays):
+            ranges = None if index_ranges is None else [index_ranges[i] for i in positions]
+            return libidh.idh_source_readarrays(
+                source,
+                arrays,
+                _tag_array([tags[i] for i in positions]),
+                _index_range_array(ranges, len(positions)),
+                len(positions)
+            )
+
+        if index_ranges is not None and len(index_ranges) != len(tags):
+            raise ValueError("index_ranges needs one entry per tag")
+        return _read_arrays(read, len(tags), capacity, as_numpy)
+
+    def write_arrays(self, source, tags, arrays, index_ranges=None):
+        """
+        Write arrays, one per tag (idh_source_writearrays).
+
+        Args:
+            source: source handle
+            tags: tag dicts, as for write_values
+            arrays: one array per tag: a flat sequence of numbers in row-major order, or a
+                numpy array, which is flattened row-major
+            index_ranges: None, or one OPC UA NumericRange per tag; OPC DA rejects ranges
+
+        Returns:
+            tuple: (number of entries written; for a single entry that failed, its error code;
+                    one result per tag)
+        """
+        if len(arrays) != len(tags):
+            raise ValueError("arrays needs one entry per tag")
+        values, buffers = _array_values(arrays)
+        results = _failed_results(len(tags))
+        result = libidh.idh_source_writearrays(
+            source,
+            results,
+            values,
+            _tag_array(tags),
+            _index_range_array(index_ranges, len(tags)),
+            len(tags)
+        )
+        return result, list(results)
+
+    def read_group_arrays(self, group, handles, capacity=256, as_numpy=False):
+        """
+        Read arrays of subscribed tags (idh_group_readarrays), from the group's cache as
+        read_group_values does. Arguments and result as for read_arrays, without index ranges.
+        """
+        def read(positions, arrays):
+            sub_handles = (c_longlong * len(positions))(*[handles[i] for i in positions])
+            return libidh.idh_group_readarrays(group, arrays, sub_handles, len(positions))
+
+        return _read_arrays(read, len(handles), capacity, as_numpy)
+
+    def write_group_arrays(self, group, handles, arrays):
+        """
+        Write arrays of subscribed tags (idh_group_writearrays), one per handle. Arguments and
+        result as for write_arrays, without index ranges.
+        """
+        if len(arrays) != len(handles):
+            raise ValueError("arrays needs one entry per handle")
+        values, buffers = _array_values(arrays)
+        handles_array = (c_longlong * len(handles))(*handles)
+        results = _failed_results(len(handles))
+        result = libidh.idh_group_writearrays(
+            group,
+            results,
+            values,
+            handles_array,
+            len(handles)
+        )
+        return result, list(results)
+
     def browse_source(self, source, max_items, parent_namespace_index=0, parent_node_name=None):
         """
         browse opc tags
@@ -641,7 +940,8 @@ class IDHLibrary:
             parent_node_name: parent，None if root
             
         Returns:
-            tuple: (error code, item list)
+            tuple: (entry count, or IDH_ERRCODE_NOVALUE if there are no children, or another
+                    negative error code; item list, empty when the code is negative)
         """
         items_array_type = idh_browse_item_t * max_items
         items_array = items_array_type()
@@ -659,6 +959,10 @@ class IDHLibrary:
             parent_name_bytes
         )
         
+        if result < 0:
+            # A failed call may not have written items_count, which then still holds max_items.
+            return result, []
+
         items_list = []
         for i in range(items_count.value):
             item = items_array[i]
@@ -671,7 +975,8 @@ class IDHLibrary:
                 'data_type': IDH_DATATYPE(item.data_type),
                 'is_readable': bool(item.is_readable),
                 'is_writable': bool(item.is_writable),
-                'has_children': bool(item.has_children)
+                'has_children': bool(item.has_children),
+                'value_rank': item.value_rank
             })
         
         return result, items_list
@@ -685,7 +990,7 @@ class IDHLibrary:
             max_items: 最大返回项目数量
             
         Returns:
-            tuple: (错误码, 浏览项目列表)
+            tuple: (条目数, 没有子节点时为 IDH_ERRCODE_NOVALUE, 其它负值为错误码; 浏览项目列表, 返回负值时为空)
         """
         items_array_type = idh_browse_item_t * max_items
         items_array = items_array_type()
@@ -697,6 +1002,10 @@ class IDHLibrary:
             byref(items_count)
         )
         
+        if result < 0:
+            # A failed call may not have written items_count, which then still holds max_items.
+            return result, []
+
         items_list = []
         for i in range(items_count.value):
             item = items_array[i]
@@ -709,7 +1018,8 @@ class IDHLibrary:
                 'data_type': IDH_DATATYPE(item.data_type),
                 'is_readable': bool(item.is_readable),
                 'is_writable': bool(item.is_writable),
-                'has_children': bool(item.has_children)
+                'has_children': bool(item.has_children),
+                'value_rank': item.value_rank
             })
         
         return result, items_list
@@ -748,10 +1058,13 @@ def main():
         source_flag=IDH_RTSOURCE_FLAG.IDH_RTSOURCE_FLAG_SUBSCRIBE.value
     )
     if IDH_INVALID_HANDLE == source:
-        print("Failed to create group.")
+        print("Failed to create source.")
+        idh.destroy()
         return
     if not idh.is_source_valid(source):
         print("Source is not valid.")
+        idh.destroy_source(source)
+        idh.destroy()
         return
 
     # Browse example - browse root
@@ -798,6 +1111,8 @@ def main():
     group = idh.create_group(source, "Group1")
     if IDH_INVALID_HANDLE == group:
         print("Failed to create group.")
+        idh.destroy_source(source)
+        idh.destroy()
         return
     subscribe_result, handles = idh.subscribe_group(group, tags)
     # hex print handles
