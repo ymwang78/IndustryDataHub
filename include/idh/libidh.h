@@ -4,9 +4,16 @@
  *  This library is used to provide a common interface for accessing data from different data
  * sources The data sources can be OPC UA, OPC DA, SQL, etc.
  * Note:
- * 1. Don't support abs(int64/uint64) >= 2^52, because of the precision of double.
+ * 1. Values are passed as double, which holds every integer up to 2^53 exactly. An Int64/UInt64
+ *    value whose magnitude exceeds 2^53 is read as the nearest double; if the server reported it
+ *    as good, its quality becomes IDH_HIGH_UNCERTAIN | IDH_LOW_UNCERTAIN_ESTIMATED.
  * 2. Minimal support OPC DA 2.0.
  * 3. DA Schema: opc.da://{hostname}/{ProgID}?ds_device=1 opc.da://{hostname}/{CLSID}?ds_device=0
+ * 4. Modbus TCP Schema: modbus.tcp://{host}[:{port}][?key=value&...], port 502 by default.
+ *    A tag's namespace_index is the unit id (0..255) and its tag_name is
+ *    <co|di|ir|hr><address>[.<bit>][:<type>][@<word order>], with a 0-based address, e.g.
+ *    hr100:f32@cdab or hr10.3. Types: bool i16 u16 i32 u32 i64 u64 f32 f64; word orders: abcd
+ *    cdab badc dcba.
  */
 
 #ifdef _WIN32
@@ -39,7 +46,15 @@ typedef enum _zlog_level {
 #    define ZCE_DEFINED_LOGLEVEL
 #endif
 
+/* Error codes use signed int values, matching the C API: compare results as int.
+ * The 32-bit error bit patterns are preserved; conversion to long long sign-extends
+ * negative errors, including entries in group handle/result arrays.
+ */
+#if defined(__cplusplus)
+typedef enum _IDH_ERRCODE : int {
+#else
 typedef enum _IDH_ERRCODE {
+#endif
     IDH_ERRCODE_SUCCESS = 0,
 
     IDH_SUCCEED_IDHBASE = 0x1110000,
@@ -47,7 +62,7 @@ typedef enum _IDH_ERRCODE {
 
     IDH_ERRCODE_FAILED = -1,
 
-    IDH_ERROR_COMMON = 0x81010000,  // IDH COMM ERROR
+    IDH_ERROR_COMMON = (int)0x81010000,  // IDH COMM ERROR
     IDH_ERROR_MALLOC,
     IDH_ERROR_UNSUPPORT,
     IDH_ERROR_SHRTLEN,
@@ -68,7 +83,7 @@ typedef enum _IDH_ERRCODE {
     IDH_ERROR_NORESOURCE,
     IDH_ERROR_VERSION,
 
-    IDH_ERRCODE_IDHBASE = 0x81110000,
+    IDH_ERRCODE_IDHBASE = (int)0x81110000,
     IDH_ERRCODE_INVALIDTAG,
     IDH_ERRCODE_INVALIDHANDLE,
     IDH_ERRCODE_INVALIDSERVER,
@@ -92,6 +107,22 @@ typedef enum _IDH_DATATYPE {
     IDH_DATATYPE_STRING = 3,
 } IDH_DATATYPE;
 
+/* Element type of an array value, see idh_array_t::element_type. */
+typedef enum _IDH_ELEMTYPE {
+    IDH_ELEMTYPE_UNKNOWN = 0,
+    IDH_ELEMTYPE_BOOLEAN = 1,
+    IDH_ELEMTYPE_SBYTE = 2,
+    IDH_ELEMTYPE_BYTE = 3,
+    IDH_ELEMTYPE_INT16 = 4,
+    IDH_ELEMTYPE_UINT16 = 5,
+    IDH_ELEMTYPE_INT32 = 6,
+    IDH_ELEMTYPE_UINT32 = 7,
+    IDH_ELEMTYPE_INT64 = 8,
+    IDH_ELEMTYPE_UINT64 = 9,
+    IDH_ELEMTYPE_FLOAT = 10,
+    IDH_ELEMTYPE_DOUBLE = 11,
+} IDH_ELEMTYPE;
+
 typedef enum _IDH_QUALITY {
     /* ---------------- High 2-bit Quality Class ---------------- */
     IDH_HIGH_INVALID = 0x00,    // 00xxxxxx
@@ -99,6 +130,7 @@ typedef enum _IDH_QUALITY {
     IDH_HIGH_BAD = 0x80,        // 10xxxxxx
     IDH_HIGH_GOOD = 0xC0,       // 11xxxxxx
     IDH_HIGH_MASK = 0xC0,
+    IDH_LOW_MASK = 0x3F,
 
     /* ---------------- INVALID / BAD Base States (0x01–0x0F) ---------------- */
     IDH_LOW_INVALID_NODATA = 0x01,       // BadNoData
@@ -185,10 +217,11 @@ typedef enum _IDH_RTSOURCE_FLAG {
     IDH_RTSOURCE_FLAG_RECONNECT = 0x2,  // auto reconnect on connection lost
 } IDH_RTSOURCE_FLAG;
 
-typedef enum _IDH_RTSOURCE {
+typedef enum _IDH_RTSOURCE  {
     IDH_RTSOURCE_UA,
     IDH_RTSOURCE_DA,
     IDH_RTSOURCE_CSV,
+    IDH_RTSOURCE_MODBUS,  // Modbus TCP, see note 4 at the top
     IDH_RTSOURCE_COUNT
 } IDH_RTSOURCE;
 
@@ -218,10 +251,39 @@ typedef struct _idh_real {
 #define IDH_TQ_QUALITY_SHIFT 48
 #define IDH_TQ_TIME_MASK 0x0000FFFFFFFFFFFFULL
 
-static inline uint8_t idh_get_quality(uint64_t tq) { return (uint8_t)(tq >> IDH_TQ_QUALITY_SHIFT); }
+/* Arrays (idh_source_readarrays / idh_source_writearrays). Elements are passed as double, as
+ * scalars are, and a multi-dimensional array is flattened row-major (the last index varies
+ * fastest). One quality and one timestamp cover the whole array. */
+#define IDH_ARRAY_MAX_RANK 4
+
+typedef struct _idh_array {
+    double* values;         // in: buffer for the elements, or NULL to report only the metadata
+    uint32_t capacity;      // in: number of elements values can hold
+    uint32_t length;        // out: number of elements (the product of the dimensions)
+    uint64_t time_quality;  // out: same encoding as idh_real_t
+    int32_t result;         // out: 0, or a negative error code for this entry
+    uint16_t element_type;  // out: IDH_ELEMTYPE
+    uint8_t rank;           // out: number of dimensions; 0 for a scalar, read as one element
+    uint8_t reserved;
+    uint32_t dimensions[IDH_ARRAY_MAX_RANK];  // out: dimension lengths, outermost first; ranks
+                                              //      above IDH_ARRAY_MAX_RANK report only these
+} idh_array_t;
+
+typedef struct _idh_array_value {
+    const double* values;  // elements, row-major; may be NULL when length is 0
+    uint32_t length;       // number of elements
+} idh_array_value_t;
+
+static inline uint8_t idh_get_quality(uint64_t tq) {
+    return (uint8_t)(tq >> IDH_TQ_QUALITY_SHIFT);
+}
 
 static inline uint8_t idh_get_quality_high(uint64_t tq) {
     return (IDH_HIGH_MASK & (uint8_t)(tq >> IDH_TQ_QUALITY_SHIFT));
+}
+
+static inline uint8_t idh_get_quality_low(uint64_t tq) {
+    return (IDH_LOW_MASK & (uint8_t)(tq >> IDH_TQ_QUALITY_SHIFT));
 }
 
 static inline uint64_t idh_get_timestamp(uint64_t tq) { return tq & IDH_TQ_TIME_MASK; }
@@ -242,16 +304,28 @@ typedef enum _IDH_NODETYPE {
     IDH_NODETYPE_VIEW = 8
 } IDH_NODETYPE;
 
+/* idh_browse_item_t::value_rank, the same values as the OPC UA ValueRank attribute. Any n >= 1 is
+ * an array with exactly n dimensions; only 1 has a name below, and fixed ranks above 127 are
+ * reported as 127. Only variables carry one; every other node reports IDH_VALUERANK_SCALAR. A
+ * variable whose rank could not be read reports IDH_VALUERANK_ANY. */
+#define IDH_VALUERANK_SCALAR_OR_ONE_DIMENSION (-3)
+#define IDH_VALUERANK_ANY (-2)  // scalar or array of any rank, or unknown
+#define IDH_VALUERANK_SCALAR (-1)
+#define IDH_VALUERANK_ONE_OR_MORE_DIMENSIONS 0  // array, rank not fixed (OPC DA arrays)
+#define IDH_VALUERANK_ONE_DIMENSION 1           // array with exactly one dimension
+
 typedef struct _idh_browse_item {
     uint16_t namespace_index;
-    char node_name[256];     // 节点名称
-    char display_name[256];  // 显示名称
-    char description[512];   // 节点描述
-    IDH_NODETYPE node_type;  // 节点类型
-    IDH_DATATYPE data_type;  // 数据类型（仅变量节点有效）
-    uint8_t is_readable;     // 是否可读
-    uint8_t is_writable;     // 是否可写
-    uint8_t has_children;    // 是否有子节点
+    char node_name[256];         // 节点名称
+    char display_name[256];      // 显示名称
+    char description[512];       // 节点描述
+    IDH_NODETYPE node_type;      // 节点类型
+    IDH_DATATYPE data_type;      // 数据类型（仅变量节点有效）; 数组节点为元素的类型
+    uint8_t is_readable;   // 是否可读
+    uint8_t is_writable;   // 是否可写
+    uint8_t has_children;  // 是否有子节点
+    int8_t value_rank;     // 标量还是数组, 见 IDH_VALUERANK_*. 占用原来的结构体尾部填充,
+                           // sizeof 和其它字段的偏移都不变
 } idh_browse_item_t;
 
 LIBIDH_API idh_handle_t idh_instance_create();
@@ -264,14 +338,24 @@ LIBIDH_API int idh_set_log_level(ZLOG_LEVEL level);
 LIBIDH_API int idh_get_log_level(ZLOG_LEVEL* level);
 
 LIBIDH_API int idh_instance_discovery(idh_handle_t handle, idh_source_desc_t* source_vec,
-                                      unsigned source_size, const char* hostname, uint16_t port);
+                                      unsigned source_size, const char* hostname,
+                                      uint16_t port);
 /* data source */
 
+// sample_timespan_msec: 订阅周期(毫秒). >0 = 订阅模式(组读返回订阅缓存);
+//   ==0 = 不订阅(同步读模式), 组读时直接同步读OPC并按缓存窗口节流
 LIBIDH_API idh_source_t idh_source_create(idh_handle_t handle, IDH_RTSOURCE source_type,
                                           const char* source_schema, int sample_timespan_msec,
                                           unsigned int source_flag);
 
 LIBIDH_API int idh_source_valid(idh_source_t source_id);
+
+// 设置同步读模式(订阅时间为0)下的缓存有效窗口(毫秒), 默认100ms; 0 = 每次组读都同步读OPC.
+// 窗口内的快读直接返回缓存, 避免大量请求打到OPC服务器. 返回0成功, 负值为错误码.
+LIBIDH_API int idh_source_set_sync_cache_msec(idh_source_t source_id, int msec);
+
+// 获取当前同步读缓存窗口(毫秒). 返回 >=0 为当前窗口值, 负值为错误码.
+LIBIDH_API int idh_source_get_sync_cache_msec(idh_source_t source_id);
 
 LIBIDH_API void idh_source_destroy(idh_source_t source_id);
 
@@ -287,6 +371,53 @@ LIBIDH_API int idh_source_readvalues(idh_source_t source_id, idh_real_t* values,
 
 LIBIDH_API int idh_source_writevalues(idh_source_t source_id, int* results, const double* values,
                                       const idh_tag_t* tags_ptr, int tags_size);
+
+/* Array read and write, OPC UA and OPC DA: other sources return IDH_ERROR_UNSUPPORT. The scalar
+ * APIs above keep rejecting arrays.
+ * index_ranges: NULL, or one entry per tag. An entry that is NULL or "" means the whole array;
+ * otherwise it is an OPC UA NumericRange such as "3", "2:5" or "0:1,2:3". A single element is
+ * written "2", not "2:2". OPC DA has no index ranges: a read applies the range locally, with the
+ * same results as an OPC UA server; a write with a range is IDH_ERROR_UNSUPPORT for that entry.
+ * OPC DA arrays are one-dimensional SAFEARRAYs.
+ * Both return a negative error code when the whole call fails: IDH_ERRCODE_INVALIDHANDLE,
+ * IDH_ERROR_INVALID (arrays/results, values or tags NULL, or tags_size <= 0), IDH_ERROR_UNSUPPORT,
+ * or a connection failure. Once the arguments are valid, every entry's result is first set to
+ * IDH_ERRCODE_FAILED, so a call that fails later still leaves defined entries. */
+
+/* Returns the number of entries whose result is 0. Per entry:
+ * - the elements fit: they are copied to values and result is 0;
+ * - values is NULL: only length, element_type, rank, dimensions and time_quality are set;
+ * - capacity is too small: result IDH_ERROR_SHRTLEN, length is the number needed and values is
+ *   left untouched;
+ * - Bad or Uncertain values are copied and counted; time_quality says what they are worth.
+ *   Int64 and UInt64 elements beyond 2^53 turn GOOD into UNCERTAIN|ESTIMATED, as for scalars;
+ * - IDH_ERRCODE_UNSUPPORTTYPE: the elements are not numbers or Booleans (strings, DateTime, ...);
+ * - IDH_ERRCODE_NOVALUE: no value, or no element in the index range (a lower bound past the end,
+ *   or more dimensions than the value). An upper bound past the end reads up to the end;
+ * - IDH_ERROR_SYNTAX: a malformed index range, which is not sent, or one with fewer dimensions
+ *   than the value;
+ * - IDH_ERRCODE_INVALIDTAG: the node does not exist. */
+LIBIDH_API int idh_source_readarrays(idh_source_t source_id, idh_array_t* arrays,
+                                     const idh_tag_t* tags_ptr, const char* const* index_ranges,
+                                     int tags_size);
+
+/* Returns the number of entries written; for a single entry that failed, its error code. The node
+ * is read first to learn its element type and shape, so a node that cannot be read is
+ * IDH_ERRCODE_UNSUPPORTTYPE; OPC DA then uses the item's canonical type instead. Per entry,
+ * nothing is sent when:
+ * - any element cannot be represented in the element type (out of range, NaN or +-inf for an
+ *   integer or Boolean, a finite value that would become +-inf in a Float): IDH_ERROR_OVERFLOW;
+ * - an index range reaches past the end of the array (reads stop at the end, writes do not) or
+ *   holds no element: IDH_ERROR_OVERFLOW;
+ * - a scalar node (exactly one element), a multi-dimensional node or an index range gets a
+ *   different number of elements than it holds: IDH_ERROR_SHRTLEN or IDH_ERROR_EXCDLEN. The
+ *   length of a one-dimensional whole-array write is left to the server.
+ * Server rejections: IDH_ERRCODE_UNSUPPORTTYPE (BadTypeMismatch, for example a fixed-length
+ * array of another length), IDH_ERROR_OVERFLOW (BadOutOfRange, BadIndexRangeNoData),
+ * IDH_ERRCODE_INVALIDTAG (unknown node), otherwise IDH_ERRCODE_FAILED. */
+LIBIDH_API int idh_source_writearrays(idh_source_t source_id, int* results,
+                                      const idh_array_value_t* values, const idh_tag_t* tags_ptr,
+                                      const char* const* index_ranges, int tags_size);
 
 /* batch operators. speed up for high frequency read/write */
 
@@ -306,6 +437,26 @@ int idh_group_readvalues(idh_group_t batch_id, idh_real_t* values_ptr, const lon
 
 LIBIDH_API int idh_group_writevalues(idh_group_t batch_id, int* results, const double* values_ptr,
                                      const long long* tag_handles, unsigned tags_size);
+
+/* Array read and write for subscribed tags (handles from idh_group_subscribe), OPC UA and OPC
+ * DA. They work as idh_source_readarrays / idh_source_writearrays without index ranges, which
+ * a group does not keep; use the source calls for part of an array.
+ * - Reads come from the group's cache, as idh_group_readvalues: the subscription, or with
+ *   sample_timespan_msec == 0 a synchronous read throttled by the sync cache window.
+ * - An invalid handle is IDH_ERRCODE_INVALIDHANDLE for that entry, with time_quality
+ *   INVALID|HANDLE; a tag without a monitored item (OPC DA: an item not added to the group yet)
+ *   is IDH_ERRCODE_UNSUBSCRIBED. When no handle is valid the call returns
+ *   IDH_ERRCODE_UNSUBSCRIBED.
+ * - A write reads the node first for its element type and shape, as the source call does. A
+ *   handle given more than once is written once with its last array; earlier entries with the
+ *   same elements share its result, the others are IDH_ERROR_DUPLICATED, as in
+ *   idh_group_writevalues. The next group read returns the written value. */
+LIBIDH_API int idh_group_readarrays(idh_group_t batch_id, idh_array_t* arrays,
+                                    const long long* tag_handles, unsigned tags_size);
+
+LIBIDH_API int idh_group_writearrays(idh_group_t batch_id, int* results,
+                                     const idh_array_value_t* values, const long long* tag_handles,
+                                     unsigned tags_size);
 
 LIBIDH_API void idh_group_destroy(idh_group_t batch_id);
 
