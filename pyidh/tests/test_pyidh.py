@@ -12,8 +12,12 @@ browse_source() and browse_source_root() built their list from items_count even 
 call failed. A failure that did not write items_count left max_items there, so the caller
 got max_items zero-filled entries.
 
-Needs the built library next to pyidh.py (win_amd64/libidh.dll or linux_x86_64/libidh.so);
-without it every test is skipped. No OPC server is required. Run from the repository root:
+Needs the built library next to pyidh.py: win_amd64/libidh.dll, or linux_x86_64/libidh.so or
+linux_aarch64/libidh.so, the symlink to libidh.so.1.0.0 that the install step and the
+IndustryDataHub checkout provide. Without it every test is skipped; a library that is there
+but does not load is reported as an error, not skipped. No OPC server is required. The same
+file is carried verbatim as pyidh/tests/test_pyidh.py in IndustryDataHub, so run it from the
+directory that holds tests/ (the repository root here, pyidh/ there):
 
     python tests/test_pyidh.py -v
 
@@ -43,14 +47,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 try:
     import pyidh  # noqa: E402
-except FileNotFoundError as e:  # pyidh loads the library on import
+except OSError as e:  # pyidh loads the library on import: FileNotFoundError, or a failed load
     pyidh = None
     _load_error = e
 
 
 def setUpModule():
     if pyidh is None:
-        raise unittest.SkipTest(f"libidh is not built: {_load_error}")
+        if isinstance(_load_error, FileNotFoundError):
+            raise unittest.SkipTest(f"libidh is not built: {_load_error}")
+        # The library is there but does not load (a missing runtime dependency, the wrong
+        # architecture): that is a defect to show, not an environment to skip
+        raise _load_error
 
 
 class InvalidHandleTests(unittest.TestCase):
