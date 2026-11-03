@@ -1,4 +1,5 @@
 from .pyidh import (
+    libidh,  # the ctypes CDLL, for tests that mock C functions
     IDHLibrary,
     IDH_ERRCODE,
     IDH_DATATYPE,
