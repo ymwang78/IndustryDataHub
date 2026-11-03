@@ -588,7 +588,7 @@ def _array_entry(array, buffer, as_numpy):
     """One read entry as a dict. 'values' holds the elements only when 'result' is 0."""
     rank = array.rank
     dimensions = [array.dimensions[d] for d in range(min(rank, IDH_ARRAY_MAX_RANK))]
-    values = list(buffer[:array.length]) if array.result == 0 else []
+    values = list(buffer[:array.length]) if array.result == 0 and buffer is not None else []
     if as_numpy:
         import numpy
         values = numpy.array(values, dtype=numpy.float64)
@@ -619,9 +619,11 @@ def _read_arrays(read, count, capacity, as_numpy):
         arrays = (idh_array_t * len(positions))()
         buffers = []
         for k, i in enumerate(positions):
-            buffer = (c_double * capacities[i])()
+            # No buffer at capacity 0: values is NULL, which libidh takes as "report the
+            # metadata only", so no pointer to a zero-length ctypes array is handed out
+            buffer = (c_double * capacities[i])() if capacities[i] else None
             buffers.append(buffer)
-            arrays[k].values = cast(buffer, POINTER(c_double))
+            arrays[k].values = cast(buffer, POINTER(c_double)) if buffer is not None else None
             arrays[k].capacity = capacities[i]
             # Start where libidh resets an entry (FAILED, INVALID|NODATA): it returns an invalid
             # handle before the reset, and a zeroed entry would read as an empty success
@@ -632,6 +634,10 @@ def _read_arrays(read, count, capacity, as_numpy):
         if ret is not None and r < 0:
             break  # a retry failed as a whole: those entries keep IDH_ERROR_SHRTLEN
         for k, i in enumerate(positions):
+            if buffers[k] is None and arrays[k].result == 0 and arrays[k].length > 0:
+                # A metadata-only read succeeds without the elements: the entry needs a
+                # buffer of 'length' elements, the same as one whose buffer was too short
+                arrays[k].result = IDH_ERRCODE.IDH_ERROR_SHRTLEN.value
             entries[i] = _array_entry(arrays[k], buffers[k], as_numpy)
         if ret is None:
             ret = r
@@ -840,7 +846,7 @@ class IDHLibrary:
                 None or "" reads the whole array
             capacity: elements to allocate per entry at first. An entry that needs more
                 (IDH_ERROR_SHRTLEN) is read again with the length the library reported, so 0
-                sizes every buffer from a first pass
+                sizes every buffer from a first, metadata-only pass
             as_numpy: give 'values' as numpy float64 arrays, shaped like 'dimensions' for
                 multi-dimensional arrays (needs numpy)
 
