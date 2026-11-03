@@ -32,7 +32,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Verify version matches release tag
       if: github.event_name == 'release'
@@ -53,7 +53,7 @@ jobs:
       shell: bash
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: '3.13'   # 用统一版本来构建
 
@@ -99,7 +99,7 @@ jobs:
       shell: bash
 
     - name: Upload wheel artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: wheels-${{ matrix.platform }}
         path: |
@@ -118,7 +118,7 @@ jobs:
       contents: read
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v8
       with:
         path: wheels/
 
